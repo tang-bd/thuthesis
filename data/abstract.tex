@@ -1,39 +1,35 @@
-% !TEX root = ../thuthesis-example.tex
+% !TEX root = ../thuthesis-main.tex
 
 % 中英文摘要和关键字
 
 \begin{abstract}
-  论文的摘要是对论文研究内容和成果的高度概括。
-  摘要应对论文所研究的问题及其研究目的进行描述，对研究方法和过程进行简单介绍，对研究成果和所得结论进行概括。
-  摘要应具有独立性和自明性，其内容应包含与论文全文同等量的主要信息。
-  使读者即使不阅读全文，通过摘要就能了解论文的总体内容和主要成果。
+  数字电路时序图是芯片设计与验证中编码模块行为规约的核心视觉载体，蕴含了实现对应硬件描述语言代码所需的完整逻辑信息。然而，从时序图到硬件描述语言代码的转化至今仍高度依赖工程师的手工操作，效率低下且极易引入人为错误。近年来，多模态大语言模型在跨模态理解任务中展现出卓越性能，但将其应用于时序图等高度专业化的技术图表仍面临训练数据匮乏、领域视觉特征与通用图像差异显著以及生成代码的功能正确性难以保证等挑战。
 
-  论文摘要的书写应力求精确、简明。
-  切忌写成对论文书写内容进行提要的形式，尤其要避免“第 1 章……；第 2 章……；……”这种或类似的陈述方式。
-
-  关键词是为了文献标引工作、用以表示全文主要内容信息的单词或术语。
-  关键词不超过 5 个，每个关键词中间用分号分隔。
+  本文提出了一种基于多模态大语言模型的数字电路时序图自动化解析框架，将该任务建模为两阶段流水线：首先由多模态大语言模型将时序图图像转换为结构化表示，再由文本大语言模型基于结构化表示推理生成硬件描述语言代码。
+  在数据层面，本文优化了数据合成链路，利用大语言模型替代随机激励生成高质量测试平台，并构建筛选机制剔除低质量样本，显著提升了训练数据的合理性与实用性。
+  在模型层面，本文采用有监督微调策略分别训练两阶段模型，实现了从“图像到结构化表示”及“结构化表示到硬件描述语言代码”的跨模态转换。
+  在评价层面，本文提出了一种面向时序图结构化表示的专用评价指标，弥补了传统文本指标无法衡量结构化表示的语义正确性的不足。
+  在优化层面，本文将该指标作为奖励函数引入强化学习阶段，通过群体相对策略优化算法大幅提升了生成代码在功能仿真中的正确率。
+  实验结果表明，本文方法在时序图解析任务上显著优于现有基线，为智能电子设计自动化工具的发展开辟了新的路径。
 
   % 关键词用“英文逗号”分隔，输出时会自动处理为正确的分隔符
   \thusetup{
-    keywords = {关键词 1, 关键词 2, 关键词 3, 关键词 4, 关键词 5},
+    keywords = {多模态大语言模型, 数字电路时序图, 电子设计自动化, 有监督微调, 强化学习},
   }
 \end{abstract}
 
 \begin{abstract*}
-  An abstract of a dissertation is a summary and extraction of research work and contributions.
-  Included in an abstract should be description of research topic and research objective, brief introduction to methodology and research process, and summary of conclusion and contributions of the research.
-  An abstract should be characterized by independence and clarity and carry identical information with the dissertation.
-  It should be such that the general idea and major contributions of the dissertation are conveyed without reading the dissertation.
+  Digital timing diagrams encode the behavioral specifications of hardware modules and are central to chip design and verification. Converting them into Hardware Description Language (HDL) code, however, still relies heavily on manual effort---a process that is both time-consuming and error-prone. While Multimodal Large Language Models (MLLMs) have shown remarkable cross-modal understanding capabilities, applying them to highly specialized technical diagrams such as timing diagrams remains challenging due to the scarcity of training data, the significant gap between domain-specific visual features and natural images, and the difficulty of ensuring functional correctness of generated code.
 
-  An abstract should be concise and to the point.
-  It is a misunderstanding to make an abstract an outline of the dissertation and words “the first chapter”, “the second chapter” and the like should be avoided in the abstract.
-
-  Keywords are terms used in a dissertation for indexing, reflecting core information of the dissertation.
-  An abstract may contain a maximum of 5 keywords, with semi-colons used in between to separate one another.
+  This paper presents an MLLM-based automated parsing framework that formulates timing diagram analysis as a two-stage pipeline: an MLLM first converts the timing diagram image into a structured intermediate representation, and a text-based LLM then reasons over this representation to generate HDL code.
+  To address data scarcity, we optimize the data synthesis pipeline by employing LLMs to generate semantically meaningful testbenches in place of random stimuli and by introducing a filtering mechanism to remove low-quality samples.
+  We apply Supervised Fine-Tuning (SFT) to train the two-stage models separately, enabling cross-modal conversion from images to structured representations and from structured representations to HDL code.
+  We further propose a domain-specific evaluation metric tailored for structured timing representations, overcoming the inability of conventional text-similarity metrics to capture the semantic correctness of structured representations.
+  Finally, we incorporate this metric as a reward function in a Reinforcement Learning stage using the Group Relative Policy Optimization (GRPO) algorithm, substantially improving the functional simulation pass rate of the generated code.
+  Experimental results demonstrate that the proposed method significantly outperforms existing baselines on the timing diagram parsing task, opening a new pathway for the development of intelligent Electronic Design Automation tools.
 
   % Use comma as separator when inputting
   \thusetup{
-    keywords* = {keyword 1, keyword 2, keyword 3, keyword 4, keyword 5},
+    keywords* = {Multimodal Large Language Models, Digital Timing Diagrams, Electronic Design Automation, Supervised Fine-Tuning, Reinforcement Learning},
   }
 \end{abstract*}

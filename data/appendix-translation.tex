@@ -1,0 +1,445 @@
+% !TEX root = ../thuthesis-main.tex
+
+\chapter{外文资料的书面翻译}
+
+\begin{center}
+TD-Interpreter——通过视觉-语言学习增强时序图理解
+\end{center}
+\vspace{1em}
+
+{\heiti 摘要：}本文介绍TD-Interpreter，一个旨在帮助工程师在设计与验证过程中理解来自第三方的复杂时序图（Timing Diagrams, TDs）的专用机器学习工具。TD-Interpreter是一个视觉问答环境，允许工程师输入一组时序图并就这些时序图提出设计和验证方面的问题。我们通过多模态学习对LLaVA——一个轻量级的70亿参数多模态大语言模型（MLLM）——进行微调来实现TD-Interpreter。为了解决训练数据有限的问题，我们开发了一套合成数据生成流程，实现视觉信息与文本解释的对齐。实验评估证明了TD-Interpreter的有效性，它在所评估的基准测试中大幅优于未经微调的GPT-4o。
+
+{\heiti 关键词：}数字设计，时序图，多模态大语言模型，视觉-语言学习
+
+
+\section{引言}
+
+数字设计是一个复杂的过程，涉及使用硬件描述语言将需求转化为数字电路。虽然高层次综合方法和先进的IP核降低了设计过程的时间与复杂度，但工程师对各种硬件组件功能的熟悉程度仍然至关重要。时序图作为描述不同信号之间功能与交互的视觉化需求规范，在设计与验证过程中发挥着核心作用。因此，对时序图的深入理解是至关重要的。
+
+不同的时序图在抽象层次上有所不同。文档和数据手册中经常包含描述基本时序约束或特定通信协议操作逻辑的通用高层次时序图。从现有代码生成的时序图往往提供了来自资深工程师的详细见解。工程师在日常工作中绘制的时序图介于这两个层次之间。为了帮助工程师更好地理解时序图，本文提出了TD-Interpreter，一个能够在多种场景下解释时序图的AI工具，如图~\ref{fig:td-fig1}所示。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.9\linewidth]{td-interpreter/fig01_chat.png}
+  \caption{与TD-Interpreter的对话}
+  \label{fig:td-fig1}
+\end{figure}
+
+第一个动机示例涉及在初始设计阶段理解一组抽象时序图。图~\ref{fig:td-fig1}(A)展示了TD-Interpreter如何帮助一位正在设计FPGA与模数转换器（ADC）接口的工程师。如图~\ref{fig:td-fig1}(A)所示，工程师从数据手册\inlinecite{adc128s022}中上传时序图图片，并询问其规范，例如重要的时序事件。TD-Interpreter随后可以自动分析和解释该时序图。
+
+第二个动机示例涉及在后期设计阶段理解具体时序图。图~\ref{fig:td-fig1}(B)展示了这样一个使用场景：工程师需要为专用硬件定制第三方异步先进先出（FIFO）模块。工程师可以通过生成该模块的时序图图片，并将其连同相关问题上传到TD-Interpreter来熟悉现有模块。
+
+TD-Interpreter的开发得益于多模态大语言模型（MLLMs）的进展，这些模型已经实现了文本生成图像、图像描述和视觉问答等多样化应用。然而，直接使用GPT-4o等商业MLLM进行时序图解释仍然存在问题，原因包括知识产权隐私顾虑、微调受限以及训练数据不足。为了解决这些问题，我们探索了面向资源有限且关注知识产权保护的企业量身定制的低成本数据构建、训练与本地部署方案。具体而言：
+
+\begin{enumerate}
+  \item 我们开展了一项以人为中心的实证研究，对31位嵌入式系统和数字设计领域的专家进行了访谈。我们收集了关于他们使用时序图的专业经验、工作中遇到的挑战与困难、对实际时序图的反馈以及对TD-Interpreter功能期望的统计信息。
+  \item 我们通过基于实证研究开发自动化的合成数据生成器，解决了数据集匮乏的问题，将时序图解释转化为多模态学习中的视觉问答任务。我们生成了两类数据：第一类侧重于为给定时序图生成描述，增强MLLM描述时序图内部细节信息的能力；第二类针对分析任务，使MLLM能够对多种时序关系进行推理。
+  \item 我们通过采用描述增强的视觉推理方法成功微调开源MLLM LLaVA\inlinecite{liu2023llava}，解决了知识产权保护和微调受限的问题。通过在训练中结合描述与推理任务，LLaVA在时序图细节推理方面展现出令人期待的能力。该模型仅有70亿参数，非常适合本地部署。
+\end{enumerate}
+
+总而言之，TD-Interpreter将数字设计领域的专业知识与多模态学习的进展相结合，促进了时序图的自动分析，尤其将行业中的隐性知识数字化，从而加速整体开发过程。
+
+本文组织如下：第~\ref{sec:td-related}~节介绍相关工作，第~\ref{sec:td-empirical}~节展示实证研究的细节，第~\ref{sec:td-dataset}~节说明训练数据的生成方式，第~\ref{sec:td-model}~节探讨多模态LLM的微调方法，第~\ref{sec:td-experiment}~节介绍和分析实验结果。
+
+
+\section{相关工作}\label{sec:td-related}
+
+自大语言模型（LLM）问世以来，已有多项研究探索了其在辅助硬件设计方面的应用。例如，文献\inlinecite{liu2023verilogeval,liu2023chipnemo,thakur2023benchmarking,thakur2024verigen,llm4hwdesign}研究了将文本设计需求转换为Verilog代码。这些工作要么在商业LLM中使用提示工程，要么微调开源LLM，如Llama\inlinecite{touvron2023llama}和CodeGen\inlinecite{nijkamp2022codegen}。也有一些工作将LLM的应用扩展到其他领域，例如加速器设计\inlinecite{fu2023gpt4aigchip}。然而，上述工作均试图将问题转化为自然语言处理（NLP）的代码生成任务，因此这些工作中使用的LLM仅处理文本数据。本文提出的视觉问答（VQA）任务则通过视觉-语言学习探索了MLLM的潜力，使TD-Interpreter能够同时处理视觉和文本两种模态的数据。最近，文献\inlinecite{chang2024natural}也考虑了将MLLM应用于硬件设计，但该工作并未关注时序图，且目标仍为代码生成。
+
+\subsection{时序图}
+
+在近期工作中，文献\inlinecite{he2023tdmagic}提出了TD-Magic，该方法可以从时序图图像中提取严格偏序（SPO）关系作为形式化规范。然而，由于只有极少数时序图包含明确的SPO关系，TD-Magic的应用范围主要局限于为晶圆代工厂的电路组件创建库文件或为PrimeTime\inlinecite{gangadharan2002sta}等工具创建时序验证脚本。此外，TD-Magic的多模块、基于规则的设计也限制了其处理大规模时序图图片的能力。相比之下，TD-Interpreter借助MLLM在设计和验证中服务于更广泛的工程师群体，通过视觉问答环境使他们能够解释更复杂的时序图。然而，TD-Magic和TD-Interpreter的共同之处在于，两者都模拟了工程师阅读数字电路时序图图像的过程，这使它们区别于另一类直接分析可能包含混合信号波形数据点的研究（用于测试或监控目的）\inlinecite{maler2004monitoring}。这些工作采用模型到模型的方法，将数据点转换为自动机\inlinecite{fisler1999timing}和时序逻辑\inlinecite{amla1999decompositional,bartocci2022survey}等形式语言。
+
+\subsection{多模态大语言模型}
+
+多模态大语言模型（MLLMs）能够处理来自多种数据模态（如文本、图像或音频）的信息，并以其他模态提供输出\inlinecite{chen2024internvl}。LLaVA\inlinecite{liu2023llava}作为最流行的开源MLLM之一，采用了基于视觉Transformer（ViT）\inlinecite{dosovitskiy2021image}的视觉编码器、基于LLaMA\inlinecite{touvron2023llama}的语言模型，以及一个简单的线性层作为适配器来减少训练参数。近年来，MLLM通过使用更大更强的文本编码器或适配器\inlinecite{chen2024internvl}以及改进的对齐方法\inlinecite{team2023gemini}得到了增强。MLLM已被证明是执行图像描述、视觉问答和视觉推理等多模态任务的强大工具。然而，将其应用于技术图表等领域特定图像仍具有挑战性。在本文中，我们解决了这一问题，并证明了像LLaVA这样的轻量级MLLM可以作为复杂任务的稳健解释器。
+
+
+\section{以人为中心的实证分析}\label{sec:td-empirical}
+
+为确保系统设计能够反映工程师在实际中遇到的挑战，我们对31位专业人员进行了以人为中心的实证分析，了解他们使用AI工具解释时序图的情况。以下是我们的结果。
+
+\subsection{参与者背景}
+
+大多数参与者来自大学、研究机构或硬件公司。在所有参与者中，3人（9.7\%）拥有学士学位，11人（35.5\%）拥有硕士学位，17人（54.8\%）拥有博士学位或正在攻读博士学位，其中包括三位计算机工程教授。
+
+这些参与者涵盖了硬件设计方面广泛的专业技能，包括数字电路设计、FPGA开发、ASIC开发、硬件验证和嵌入式系统。
+
+\subsection{时序图使用经验}
+
+我们询问了参与者在什么场景下通常使用时序图，有趣的是，我们发现了多种使用案例。例如，超过一半的参与者（18人，58.1\%）提到使用时序图来理解通信协议（如SPI、I2C、UART）。10人（32.2\%）强调他们依赖时序图来调试新硬件设计，或理解甚至逆向工程来自同事或第三方的现有设计。4人（12.9\%）从事硬件验证工作，特别使用时序图来编写和验证Verilog/VHDL测试平台。8人（25.8\%）强调了使用时序图与他人沟通的重要性，例如展示设计、小组讨论和团队协作。三分之二的参与者告诉我们他们在职业初期使用过时序图，例如课程作业或工业实习项目。这些发现与我们在第~\ref{sec:td-related}~节中解释时序图的动机一致。
+
+我们进一步询问了参与者通常在何处接触时序图，他们的回答可以分为两组，类似于第~\ref{sec:td-related}~节中的动机示例。从他们的回答来看，一半的资源是来自数据手册、内部设计文档或教科书的抽象时序图；另一半是来自Verilog/VHDL代码或MATLAB/Simulink仿真的具体波形。
+
+由于决定支持哪种格式的时序图很重要，我们专门设计了一个问题来询问参与者使用什么工具来创建或分析时序图。有趣的是，我们仍然收到了两组均匀分布的答案。第一组人提到“他们主要手动绘制时序图”。第二组资源是来自GTKWave和ModelSim等仿真工具的波形。尽管参与者提到了多种时序图格式，但在工业界，人们倾向于使用标准格式以便于沟通，其中WaveDrom应用最为广泛。如第~\ref{sec:td-dataset}~节将要介绍的，WaveDrom支持以脚本方式绘制任意复杂度的标准时序图，并提供将仿真波形直接转换为其标准格式的接口。鉴于这些优势，我们选择解释以WaveDrom格式表示的时序图。
+
+\subsection{挑战与困难}
+
+在这组问题中，参与者被要求使用1（非常容易）到5（非常困难）的量表对理解时序图时的常见挑战进行评分。以下是各项挑战及其平均难度评分：
+
+\begin{itemize}
+  \item C1：从数据手册中提取有意义的信息。（2.97/5.0）
+  \item C2：理解通信协议的整体事务流程。（3.16/5.0）
+  \item C3：理解信号之间的输入/输出关系。（2.84/5.0）
+  \item C4：从信号行为中提取关键事件，例如某个上升/下降沿的含义。（2.77/5.0）
+  \item C5：理解多个时钟周期内多个信号之间的关系。（3.68/5.0）
+  \item C6：识别多时钟系统中的时序关系/约束。（3.77/5.0）
+  \item C7：分析跨时钟域行为。（3.84/5.0）
+  \item C8：测量时序参数（如延迟和延时）并识别建立时间和保持时间违规。（3.26/5.0）
+  \item C9：检测亚稳态相关问题。（4.0/5.0）
+  \item C10：将时序图与实际硬件行为匹配。（3.23/5.0）
+\end{itemize}
+
+平均分高于3的挑战被认为对工程师来说相对困难，这与数字设计领域的普遍经验一致。特别是，理解跨多个信号和时钟周期的时序关系，以及识别跨时钟域（CDC）场景中与亚稳态相关的问题，被广泛认为是复杂且常常难以处理的任务。
+
+除了上述困难外，一些参与者还补充说，从波形轨迹中提取有限状态机具有挑战性，这在分析通信协议时是一项常见任务。这些发现将指导我们在第~\ref{sec:td-dataset}~节中详述的训练数据生成过程。
+
+\subsection{AI的使用}
+
+在本小节中，我们调查了参与者对开发TD-Interpreter作为辅助其工作中时序图解释的潜在工具的态度。绝大多数参与者（30/31）表示如果这样的工具存在，他们愿意使用它，其中24位参与者对其应用表达了明确的兴趣。超过90\%的参与者期望TD-Interpreter在回答问题时展示推理过程。
+
+此外，当被要求设想TD-Interpreter的潜在使用案例时，参与者建议了以下有用的功能：
+\begin{itemize}
+  \item 时序图的自动解释（21人，67.7\%）
+  \item 解释图中的逐步转换（22人，71\%）
+  \item 比较多个时序图（17人，54.8\%）
+  \item 解释模糊标注（16人，51.6\%）
+  \item 检查时序违规（18人，58.1\%）
+  \item 生成设计和验证建议（8人，25.8\%）
+  \item 基于时序图提供Verilog代码建议（9人，29\%）
+\end{itemize}
+
+最后，我们询问了参与者对TD-Interpreter首个演示版本的期望。最受期待的三个应用领域为：（1）帮助解决HDLBits网站\inlinecite{hdlbits}上的习题，主要因为该平台是练习硬件设计技能的知名平台；（2）解答与常见外设协议（如UART、I2C、SPI）时序图相关的问题，主要因为这些协议被初级硬件设计师广泛使用且在嵌入式系统开发中很常见；（3）解答与总线协议（如AHB或AXI）时序图相关的问题，因为这些协议通常由更有经验的工程师接触，涉及丰富的时序关系。
+
+此外，两位资深参与者指出，如果TD-Interpreter能够从波形中综合状态机并识别与跨时钟域（CDC）相关的潜在问题，将更加有用。
+
+
+\section{数据集构建}\label{sec:td-dataset}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{td-interpreter/fig01_conv.png}
+  \caption{生成时序图图片的工作流}
+  \label{fig:td-fig2}
+\end{figure}
+
+微调MLLM以解释时序图需要一个带注释的时序图数据集，但目前不存在此类数据集。因此，我们开发了一种生成大规模时序图数据集的策略，每个时序图配有用于视觉指令调优的问答（QA）对。
+
+图~\ref{fig:td-fig2}展示了我们生成时序图图片的工作流。第一条路径获取具体时序图图片，从图~\ref{fig:td-fig2}中的“输入1”开始，解析Verilog模块以提取基本信息，如其输入和输出端口。这些信息传递给EDAUtils的测试平台生成器Vlogtbgen\inlinecite{edautils2024vlogtbgen}，为模块端口生成提供随机输入值的测试平台。生成的测试平台使用iverilog\inlinecite{williams2024iverilog}编译和仿真，产生包含仿真结果的.vcd文件。我们使用vcd2json\inlinecite{nanamaru2024vcd2json}解析.vcd文件，获得包含时序图内所有必要图形信息的.json字典。最后，wavedrom-cli\inlinecite{wavedrom2024cli}工具使用此.json文件创建WaveDrom格式的时序图图片。该图形格式在数字设计中被广泛使用。对于生成抽象时序图图片，我们直接从“输入2”开始，手动提供来自数据手册中时序图的.json内容。
+
+我们的数据生成方法包含两个阶段。在第一阶段，我们专注于生成基于描述的数据，这些数据以为给定时序图图片提供描述为中心，旨在帮助MLLM捕获时序图内部的细节。第二阶段专注于生成基于推理的数据，这些数据基于实际使用案例，旨在增强MLLM对时序图内部多种时序关系的推理能力。
+
+\subsection{基于描述的数据生成}
+
+\subsubsection{方法}
+
+图~\ref{fig:td-fig2}中展示的策略允许我们从Verilog模块生成时序图，无需手动输入。将其相关流程应用于公开可用的数据集（如文献\inlinecite{thakur2023benchmarking}）可支持快速生成时序图。那QA对呢？
+
+来自.vcd文件的仿真结果可以用于自动创建相对简单的QA对，适合训练MLLM理解时序图的基础知识。例如，.vcd文件中包含每个信号$s$在时钟周期$n$处的值。解析这些数据可以自动创建如“信号$s$在时钟周期$n$的值是什么？”的QA对。可以生成的其他QA对还包括，例如“信号$s$的值序列是什么？”、“信号$s$有多少次转换？”以及“信号$s$有多少个上升沿？”。这些问题侧重于对信号时序特征的基本理解，为更复杂的QA对提供了坚实的基础。
+
+更高级的QA对通常难以通过编程生成。然而，对于某些Verilog模块，我们成功生成了更抽象的QA对，例如“描述一下你在这个时序图中看到的内容”。这是可能的，因为其中一些模块具有高度描述性的名称。通过利用这些描述性名称和模块端口的可用信息，我们使用了DeepSeek-Coder-V2\inlinecite{deepseek2024coderv2}——一个专为代码相关任务设计的、支持Verilog代码的LLM。
+
+借助生成知识提示技术\inlinecite{liu2022generated}，DeepSeek-Coder-V2围绕给定的Verilog模块构建上下文。这是通过思维链提示\inlinecite{wei2022chain}实现的，其中LLM由一组子任务引导，以小步骤分析所提供的模块。以下提示用于构建这一思维链提示过程：“你的任务是根据有限的数据为各种数字组件提供简要描述。对于每个组件，提供该组件的描述。为此请执行以下步骤：1. 假设它是一个Verilog模块。2. 按'\_'字符分割模块名称。3. 列出并分析模块名称的各个部分。4. 列出并计数输入和输出端口。5. 分析输入和输出端口的名称。6. 确定每个端口的可能功能。7. 根据名称的各个部分和I/O端口确定模块的功能。”
+
+按照此提示，LLM能够提供清晰而详细的回答，为所提供的Verilog模块生成描述、摘要和使用案例列表。我们还能够生成以下问题：“提供时序图的描述/标题/摘要/使用案例”。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.6\linewidth]{td-interpreter/fig02_workflow.png}
+  \caption{2选1负多路复用器的时序图}
+  \label{fig:td-fig3}
+\end{figure}
+
+我们训练策略的一个示例是图~\ref{fig:td-fig3}中所示的时序图所获得的结果，该图表示一个名为“maxv\_nmux21”的Verilog模块。通过上述提示过程，DeepSeek-Coder-V2成功识别该模块为2选1负多路复用器，提供了详细描述，解释了其目的和输入/输出端口，为时序图配上了合适的标题，给出了简要摘要和使用案例列表。为了突出此类训练数据的必要性，我们将同一时序图提供给GPT-4o并要求其解释。它只回复了基本的信号枚举和高/低切换的通用解释，将A和B输入信号错误识别为时钟信号，并将该图误解为可能表示某种时钟信号关系或状态机。
+
+\subsubsection{统计}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.7\linewidth]{td-interpreter/fig03_nmux.png}
+  \caption{问题类型分布}
+  \label{fig:td-fig4}
+\end{figure}
+
+通过上述基于描述的数据生成方法，共生成了221,983个时序图。对于这些时序图，我们生成了9,915,694个QA对，其中4,306,008个是“信号$s$在时钟周期$n$的值是什么？”的形式，需要MLLM检测特定时间点的具体信号值。其他问题的分布如图~\ref{fig:td-fig4}所示。此外，对于28,271个时序图，相应Verilog模块的名称具有足够的描述性，可以使用DeepSeek-Coder-V2生成额外的描述。
+
+\subsection{基于推理的数据生成}
+
+与可以部分通过EDA工具自动化的基于描述的数据不同，基于推理的数据的生成高度依赖对第~\ref{sec:td-empirical}~节实证分析结果的人工审查，包括使用案例的选择和工程师在使用时序图时面临的典型挑战的考量。
+
+我们确定了一组常用的系统设计组件，包括存储器、通信协议和定时器。我们还考虑了HDLBits网站\inlinecite{hdlbits}上的设计题目，这些题目是广泛认可的评估LLM代码生成能力的基准。对于每个组件，我们手动走过每个设计步骤，特别关注设计者容易犯微妙错误的关键时序点。我们还有意设计了非常具体甚至非常规的问题，这些问题需要高度依赖经验和对具体上下文的理解才能解答。
+
+为了演示我们如何从具体时序图图片生成QA对，我们首先使用串行接收器协议\inlinecite{hdlbits_serialdp}的设计。这是一个说明性示例，因为它具有一定的复杂性。相同的方法可以扩展到其他使用案例。随后我们简要讨论了为抽象时序图生成数据的方法，该方法更为简单。我们还提供了生成数据的统计分析。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{td-interpreter/fig04_qdist.png}
+  \caption{串行接收器协议的期望时序图}
+  \label{fig:td-fig5}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.6\linewidth]{td-interpreter/fig05_serial.png}
+  \caption{串行接收器的Moore有限状态机}
+  \label{fig:td-fig6}
+\end{figure}
+
+\subsubsection{生成QA对}
+
+串行接收器示例描述了一个通信协议，接收字节流并带有额外的第9位和第10位分别用于奇偶校验和停止检查。正确接收一个字节的要求为：（R1）前9位应包含奇数个1；（R2）第10位为1。此外，工程师通常会看到如图~\ref{fig:td-fig5}所示的期望时序图。
+
+伴随文本需求，典型的设计工作流需要工程师分析和推理期望时序图。我们的QA对构建方法也遵循此过程。
+
+\paragraph{有限状态机设计}
+图~\ref{fig:td-fig6}展示了表示上述协议事务逻辑的有限状态机（FSM）。图~\ref{fig:td-fig5}(A)展示了成功场景，状态在$S_0$、$S_1$、$S_2$之间转换；图~\ref{fig:td-fig5}(B)展示了失败场景，状态在$S_0$、$S_1$、$S_3$之间转换。根据文本需求和期望时序图构建部分/完整的FSM是数字设计中的经典问题，我们对此给予了特别考虑。
+
+\paragraph{数据通路设计}
+如图~\ref{fig:td-fig6}所示，$\text{data\_cnt}=9$是状态转换的关键条件，因此像$\text{data\_cnt}$这样的计数器信号设计非常重要。给定期望时序图，我们可能会问：在哪些场景下$\text{data\_cnt}$会变为0、保持不变或递增？此外，如图~\ref{fig:td-fig5}所示，信号$\text{out\_byte}$与信号$\text{in}$中的序列密切相关，我们还可以提问：$\text{out\_byte}$如何从$\text{in}$中顺序存储位？
+
+\paragraph{关键时序分析}
+由于工程师经常对波形的特定行为感到困惑，这类问题专门为此场景设计。它们还可以用于增强MLLM对组合逻辑和时序逻辑的敏感性。例如，给定图~\ref{fig:td-fig6}中提出的FSM，我们可以提出关于协议开始接收第一个数据流时事件的问题：第3个时钟上升沿及其后续一个时钟周期发生了什么？答案将从FSM进行分析：在第3个上升沿，$\text{state}=S_0$。然而，在后续时钟周期中$\text{in}=0$通过组合逻辑触发$\text{next\_state}$变为$S_1$。然后在第4个时钟上升沿，$\text{state}$通过时序逻辑被采样为$S_1$。类似地，我们可以询问第一个数据流传输完成时发生的事情：请解释$\text{data\_cnt}=9$时的状态转换。
+
+除了问题类型外，我们还考虑了问题格式。例如，我们将一些陈述性问题改为判断题或选择题形式，以增加问题的多样性。
+
+\subsubsection{生成具体时序图}
+
+由于FSM的状态转换严重依赖输入信号$\text{in}$，纯随机的方式生成时序图会产生不可预测的输出，难以为其分配QA对。为了解决这一挑战，我们开发了一种自顶向下条件随机生成方法，在时序图多样性和QA对设计便利性之间取得平衡。
+
+\paragraph{场景划分}
+此过程将事务过程分为不同场景。如图~\ref{fig:td-fig5}所示，我们将FSM轨迹分为两组：成功（A）和失败（B）。
+
+\paragraph{钳位插入}
+在随机分配输入之前，我们在输入序列中添加固定钳位，如图~\ref{fig:td-fig5}(A)和(B)中的带区a、c、d、f、g所示。带区a表示“110”序列，确保状态在第4个时钟上升沿变为$S_1$以开始位传输。我们在带区c和f中分配1用于奇偶校验。
+
+\paragraph{随机生成}
+图~\ref{fig:td-fig5}(A)和(B)中的带区b、e、h是我们分配条件随机输入的位置。例如，对于图~\ref{fig:td-fig5}(A)和(B)中的带区b，其序列必须包含偶数个1，使得带区b+c中1的个数为奇数。相反，我们要求带区e中的序列包含奇数个1，使得带区e+f中1的个数为偶数。
+
+\paragraph{模式复现}
+通过钳位和条件随机输入，我们可以在时序图中复现固定模式。例如，由于带区b+c中1的个数为奇数，我们可以在图~\ref{fig:td-fig5}(A)和(B)的带区k中观察到$\text{odd}$的高脉冲。相反，带区l中$\text{odd}$的值为低，因为检测到偶数个1。此外，在图~\ref{fig:td-fig5}(A)和(B)中，带区d、k和带区g、l的连锁反应将分别导致带区i和带区j中的固定结果。带区i、j、k、l中的稳定模式有助于QA对的分配。
+
+\subsubsection{为抽象时序图生成数据}
+
+对于抽象时序图，我们重点关注常用的AMBA AXI\inlinecite{arm2011axi}、AHB\inlinecite{arm2021ahb}和APB\inlinecite{arm2021apb}协议，以及ADC\inlinecite{adc128s022}的接口设计，这些在嵌入式系统中被广泛使用。这些协议的手册包含多个时序图，展示了关键场景，如APB中的读/写传输和AHB中的突发传输。从这些资源中，我们选择了若干时序图并为其手动制作QA对。这些QA对专门针对常见的工程挑战而设计。鉴于这些抽象时序图的规模较小，我们采用了轻量级随机化方法来改变其呈现方式，包括更改信号顺序、变化时钟周期数和改变字母大小写。
+
+\subsubsection{统计}
+
+\begin{table}[htbp]
+  \centering
+  \caption{各设计任务的问题类型数量}
+  \label{tab:td-tab1}
+  \begin{tabular}{lclc}
+    \toprule
+    任务 & 类型数 & 任务 & 类型数 \\
+    \midrule
+    serial\_datapath\_stop & 24 & motor\_timer\_failure & 13 \\
+    serial\_datapath\_wait & 24 & complete\_fsm & 13 \\
+    serial\_parity\_stop & 22 & fancy\_timer & 16 \\
+    serial\_parity\_wait & 22 & sync\_fifo & 15 \\
+    HDLC\_correct & 13 & async\_fifo & 14 \\
+    HDLC\_discard & 12 & spi\_no\_clk & 25 \\
+    HDLC\_error & 13 & spi\_with\_clk & 33 \\
+    w\_counter & 10 & ADC & 12 \\
+    motor\_timer\_success & 13 & AXI/AHB/APB & 16 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.7\linewidth]{td-interpreter/fig07_reason_dist_new.png}
+  \caption{问题分布}
+  \label{fig:td-fig7}
+\end{figure}
+
+表~\ref{tab:td-tab1}展示了我们考虑的所有设计任务。总共设计了310种不同类型的问题。图~\ref{fig:td-fig7}进一步展示了它们的分布。一些任务具有特定的问题类型；对于“async\_fifo”案例，如图~\ref{fig:td-fig1}的第二个示例所示，被问到最多的问题与跨时钟域（CDC）相关。我们还发现大多数问题来自简单时序分析（STA）和复杂时序分析（CTA）组。STA问题需要解释单个信号或单个时钟周期的事件，而CTA问题需要回答不同信号之间的关系。对于实际设计案例，如“spi\_no\_clk”（从机无时钟）和“spi\_with\_clk”（从机有独立时钟），复杂度显著升级，因此大多数问题属于CTA组。在第~\ref{sec:td-experiment}~节中，我们提供了几种问题类型的具体示例。
+
+
+\section{TD-Interpreter}\label{sec:td-model}
+
+\subsection{架构}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{td-interpreter/fig08_model.png}
+  \caption{TD-Interpreter的模型架构}
+  \label{fig:td-fig8}
+\end{figure}
+
+如图~\ref{fig:td-fig8}所示，TD-Interpreter是使用我们的数据集开发的微调LLaVA模型\inlinecite{liu2023llava}。它包含一个基于视觉Transformer（ViT）\inlinecite{dosovitskiy2021image}的视觉编码器$g(\cdot)$，使模型能够理解图像信息，以及一个语言模型$f(\cdot)$，基于视觉输入和文本请求生成文本响应。TD-Interpreter以时序图图像$X_v \in \mathbb{R}^{H \times W \times C}$和文本问题$X_q$作为输入，其中$H \times W$表示$X_v$的分辨率，$C=3$表示时序图图片中的RGB通道数。视觉编码器$g(\cdot)$首先从输入图像中提取视觉特征$h_v = g(X_v)$。随后，语言模型基于视觉嵌入$h_v$和从$X_q$转换的文本输入token序列$x_t$，预测目标文本响应$X_a$的下一个token，表示为$e_t = f(h_v, x_t)$。
+
+\subsubsection{视觉编码器}
+
+基于ViT\inlinecite{dosovitskiy2021image}的视觉编码器$g(\cdot)$由$n_v$个相同的Transformer块$g_i(\cdot)$（$1 \le i \le n_v$）以及一个输入嵌入层$e_v(\cdot)$和一个输出线性层组成。每个块包含一个多头自注意力（MSA）层、一个多层感知机（MLP）层和两个层归一化（LN）\inlinecite{ba2016layer}层。输入时序图图像$X_v$的详细编码过程可表示如下。首先，图像$X_v$被分割为一系列展平的2D补丁$x_v \in \mathbb{R}^{N \times (P^2 \cdot C)}$，其中$N = (H \times W) / P^2$为补丁数量，$P \times P$为每个补丁的分辨率。然后，补丁序列由输入层$e_v$编码：$z_p^0 = e_v(x_v)$。
+
+随后，序列$z_p^0$由Transformer块$g_i(\cdot)$（$1 \le i \le n_v$）处理，其中第$i$个块$z_p^i = g_i(z_p^{i-1})$的编码过程可表示为：
+\begin{equation}
+  \hat{z}_p^{i-1} = \text{MSA}(\text{LN}(z_p^{i-1})) + z_p^{i-1}
+\end{equation}
+\begin{equation}
+  z_p^i = \text{MLP}(\text{LN}(\hat{z}_p^{i-1})) + \hat{z}_p^{i-1}
+\end{equation}
+
+最终，通过视觉编码器的最后线性层对$z_p^{n_v}$进行变换，得到视觉特征$h_v = \text{Linear}(z_p^{n_v})$。
+
+\subsubsection{语言模型}
+
+语言模型$f(\cdot)$是基于LLaMA架构\inlinecite{touvron2023llama}的预训练大语言模型（LLM），由Vicuna\inlinecite{chiang2023vicuna}模型参数化（如文献\inlinecite{liu2023llava}所述）。具体而言，$f(\cdot)$由一个输入嵌入层$e_t(\cdot)$、$n_t$个相同的Transformer块$f_i(\cdot)$（$1 \le i \le n_t$）以及一个包含RMSNorm（RN）\inlinecite{zhang2019root}层和线性层的输出块组成。给定从请求$X_q$转换的文本输入token序列$x_t$，首先由输入层$e_t(\cdot)$编码：
+\begin{equation}
+  z_t^0 = e_t(\text{Concatenate}(x_t, h_v))
+\end{equation}
+
+然后，$z_t^0$由$n_t$个Transformer块编码，其中第$i$个块$z_t^i = f_i(z_t^{i-1})$的编码过程可表示为：
+\begin{equation}
+  \hat{z}_t^{i-1} = \text{MSA}(\text{RN}(z_t^{i-1})) + z_t^{i-1}
+\end{equation}
+\begin{equation}
+  z_t^i = \text{MLP}(\text{RN}(\hat{z}_t^{i-1})) + \hat{z}_t^{i-1}
+\end{equation}
+
+最终，预测的logits可表示为$h_t = \text{Linear}(\text{RN}(z_t^{n_t}))$。通过对$h_t$应用softmax并在每个解码步骤中提取最可能的token，得到目标文本响应$X_a$的预测下一个token。
+
+\subsection{训练}
+
+如第~\ref{sec:td-dataset}~节所详述，对于每个时序图图像$X_v$，我们构建一个单轮对话数据$(X_q, X_a)$。然后，对于长度为$l$的目标答案序列$X_a$，其概率计算为：
+\begin{equation}
+  p(X_a | X_v, X_q) = \prod_{i=1}^{l} p_\theta(x_i | X_v, X_q, X_{a,<i})
+\end{equation}
+
+其中，我们固定视觉编码器$g(\cdot)$的参数，而语言模型$f(\cdot)$的参数保持可训练，记为$\theta$。此外，$X_{q,<i}$和$X_{a,<i}$分别表示当前第$i$个token之前的问题和已生成答案的token。
+
+为了提高训练速度和效率，我们在TD-Interpreter的所有层上采用了低秩适应（LoRA）\inlinecite{hu2021lora}技术并进行微调。直觉上，LoRA引入了一个参数量远少于原始权重的可训练适配器。通过仅训练轻量级适配器而非完整的权重矩阵，LoRA大幅减轻了训练负担。具体而言，给定预训练权重矩阵$W_0 \in \mathbb{R}^{d \times k}$，其中$d \times k$为矩阵的形状，LoRA将权重矩阵从$W_0$修改为$W_0 + \Delta W = W_0 + B \cdot A$，其中$A \in \mathbb{R}^{r \times k}$和$B \in \mathbb{R}^{d \times r}$是两个可训练的低秩矩阵，且$r \ll \min(d, k)$。该技术有效地将每层的可训练参数从$d \times k$减少到$r \times (d + k)$。
+
+
+\section{实验评估}\label{sec:td-experiment}
+
+\subsection{训练细节}
+
+我们首先准备了一个评估数据集作为测试基准。该数据集涵盖了表~\ref{tab:td-tab1}中几乎所有的使用案例，还包含了图~\ref{fig:td-fig7}中代表信号间各种因果关系的所有问题类型。对于每个问答对，由于随机生成，所有时序图图片都不相同，且在训练过程中从未出现过。最复杂的图片包含多达51个信号和80个时钟周期。如第~\ref{sec:td-dataset}~节所述，这些数据先由人工创建，然后自动化用于随机生成，因此对这些数据的评估能够体现模型在不同实际使用案例和问题类型上的性能。
+
+对于训练数据集，尽管使用我们在第~\ref{sec:td-dataset}~节描述的数据生成器能够生成数百万条合成数据，但我们发现没有必要训练全部数据量，而且这对于计算资源有限的研究机构或企业来说也不经济。我们通过经验发现，当总训练数据量达到约10,000条时即可获得理想的评估结果。因此，对于基于描述的数据，我们随机采样了4,942个时序图图片，每个配一个QA对；对于基于推理的数据，我们随机采样了5,292个时序图图片，每个配一个QA对。随后我们在8块NVIDIA A800 GPU上训练模型，批量大小为32。训练过程耗时17小时，共100个epoch。学习率为$10^{-4}$，LoRA秩设为8。LoRA适配器包含2000万参数。
+
+\subsection{实验结果}
+
+由于视觉问答任务的输出为文本，真实标签也以文本形式给出，我们可以使用常用的文本比较指标（如Bleu-x和Rouge-x）来评估模型输出的准确性。“-x”代表计算特定指标的不同方法。Bleu-x和Rouge-x的取值范围在0到100之间，其中100表示模型输出与标注答案完全重叠，0表示最差情况。本文仅关注Bleu-x和Rouge-x的绝对值。
+
+我们首先评估了未经微调的LLaVA，得到以下结果：Bleu-4=13.9，Rouge-1/2/l=23.2/6.6/16.3。相比之下，微调后，LLaVA取得了令人期待的成绩：Bleu-4=95.9，Rouge-1/2/l=96.7/95.9/96.5。这些对比结果具有双重意义：（1）微调前，LLaVA的时序图理解能力非常有限，微调后性能有巨大提升；（2）我们观察到微调后，LLaVA在所有Bleu-x和Rouge-x指标上均超过95分。这意味着对于评估数据集中的所有问题，LLaVA都能正确回答，仅有少量小错误。
+
+以下给出四个说明性示例，展示TD-Interpreter的能力。在每个问题编号后，我们标注了其对应于图~\ref{fig:td-fig7}的问题类型。我们选择了相对复杂的问题，如来自FSM、CDC和CTA组的问题，以展示TD-Interpreter在复杂时序关系中的推理能力。部分问题因源自特定设计问题而需要非常规的答案。我们也将结果与GPT-4o进行了比较。蓝色文字标示了GPT-4o犯错的地方。此外，我们提供了人类反馈以反映设计者可能面临的典型问题。
+
+\subsubsection{AHB协议}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{td-interpreter/fig07_reason_dist.png}
+  \caption{AHB突发写传输}
+  \label{fig:td-fig9}
+\end{figure}
+
+图~\ref{fig:td-fig9}中的时序图是使用高级高性能总线（AHB）规范的突发写传输示例。
+
+\textbf{Q1（CTA）：}为什么写入地址0x3C比其他传输花费更长时间？
+
+\textbf{A1（TD-Interpreter）：}写入地址0x3C实际上并没有花费更长时间。相反，写入地址0x38花费了更长时间。其中一个从设备在此传输中添加了一个等待状态，由HREADY信号为低电平指示。这延长了其后续传输的地址阶段，在此情况下即为写入地址0x3C的传输。总之，传输到地址0x38的数据阶段包含一个等待状态，延长了传输到地址0x3C的地址阶段。
+
+\textbf{A1（GPT-4o）：}GPT-4o注意到写传输期间HREADY信号为低。然而，它未能看到这是由于前一个传输期间插入的等待状态造成的。随后它错误地将写入0x3C识别为突发中的第一个传输。
+
+\textbf{人类反馈：}在我们的实证研究中，五位声称熟悉AHB协议的参与者尝试分析该时序图。然而，只有1人正确分析了Q1所问的时序行为，而大多数参与者简单地说“不知道”。平均信心水平也很低，仅为2.2/5（1表示不自信，5表示非常自信）。
+
+\subsubsection{花式定时器}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{td-interpreter/fig09_ahb.png}
+  \caption{花式定时器}
+  \label{fig:td-fig10}
+\end{figure}
+
+图~\ref{fig:td-fig10}中的时序图展示了一个花式定时器模块，满足以下要求：（R1）检测到特定模式（1101）时启动；（R2）再移入4位以确定延迟持续时间；（R3）等待计数器完成计数；（R4）通知用户并等待用户确认定时器。
+
+\textbf{Q1（FSM）：}你能综合一个Moore FSM吗？
+
+\textbf{A1（TD-Interpreter）：}提供了一个完整的FSM：
+\begin{itemize}
+  \item （R1）：$s_0 \xrightarrow{x} s_1$，$s_0 \xrightarrow{\sim x} s_0$，$s_1 \xrightarrow{x} s_2$，$s_1 \xrightarrow{\sim x} s_0$，$s_2 \xrightarrow{x} s_2$，$s_2 \xrightarrow{\sim x} s_3$，$s_3 \xrightarrow{x} s_4$，$s_3 \xrightarrow{\sim x} s_0$
+  \item （R2）：$s_4 \xrightarrow{\sim rst} s_5$，$s_4 \xrightarrow{rst} s_0$，$s_5 \xrightarrow{\sim rst} s_6$，$s_5 \xrightarrow{rst} s_0$，$s_6 \xrightarrow{\sim rst} s_7$，$s_6 \xrightarrow{rst} s_0$，$s_7 \xrightarrow{\sim rst} s_8$，$s_7 \xrightarrow{rst} s_0$
+  \item （R3）：$s_8 \xrightarrow{finish} s_9$，$s_8 \xrightarrow{\sim finish} s_8$
+  \item （R4）：$s_9 \xrightarrow{ack} s_0$，$s_9 \xrightarrow{\sim ack} s_9$
+  \item 输出：$s_4 \sim s_7 \rightarrow \text{shift\_ena}=1$，$s_8 \rightarrow \text{counting}=1$，$s_9 \rightarrow \text{done}=1$
+\end{itemize}
+
+\textbf{A1（GPT-4o）：}只提供了非常高层次的FSM设计。
+
+\textbf{Q2（计数器）：}在哪个时钟周期“cnt”和“count”都等于0，为什么在下一个时钟周期定时器立即停止工作？
+
+\textbf{A2（TD-Interpreter）：}看第20个时钟周期。在这个周期中，“cnt”和“count”都等于0。这可以用作触发信号将“finish”设为1。由于当前状态为$s_8$，根据FSM，如果在此状态下$\text{finish}=1$，则$\text{next\_state}$变为$s_9$。然后在第21个时钟上升沿，$\text{state}$被采样为$s_9$。这将禁用信号“count”并启用信号“done”。
+
+\textbf{A2（GPT-4o）：}未能定位“cnt”和“count”两个信号值都等于0的正确时钟周期。
+
+\textbf{人类反馈：}我们没有要求参与者分析该时序图，因为即使对人类专家来说，从该时序图综合FSM也需要大量时间。然而，如第~\ref{sec:td-empirical}~节所述，从波形生成FSM是实际需求，因此当TD-Interpreter提供此功能时，将为工程师节省大量时间。
+
+\subsubsection{异步FIFO}
+
+图~\ref{fig:td-fig1}(B)中的时序图展示了深度为4的异步FIFO模块。
+
+\textbf{Q1（CDC）：}以下关系是否正确？$\text{grayencode}(\text{wr\_exp}) \rightarrow \text{rd\_clk} \rightarrow \text{wr\_exp\_r} \rightarrow \text{wr\_clk} \rightarrow \text{wr\_exp\_cross} \rightarrow \text{wr\_clk} \rightarrow \text{wr\_exp\_cross\_r} \rightarrow \text{wr\_exp\_cross\_trans} = \text{graydecode}(\text{wr\_exp\_cross\_r})$。
+
+\textbf{A1（TD-Interpreter）：}不正确，正确的关系应该交换rd\_clk和wr\_clk。
+
+\textbf{A1（GPT-4o）：}GPT-4o有时认为提供的关系是正确的，有时认为是错误的，但倾向于提供不正确的解决方案。
+
+\textbf{Q2（CDC）：}观察第一次读取操作并回答：（1）wr\_num是否代表FIFO内部数据的真实数量？（2）rd\_num是否代表FIFO内部数据的真实数量？
+
+\textbf{A2（TD-Interpreter）：}（1）否。“wr\_num”工作在“wr\_clk”域中，因此在连续读取操作发生的场景下，“wr\_num”无法反映FIFO内部数据的真实数量。（2）是。从时序图中，$\text{rd\_num} = \text{wr\_exp\_cross\_trans} - \text{rd\_exp}$。“rd\_exp”在“rd\_clk”域中没有信息滞后，但“wr\_exp\_cross\_trans”有。然而，在读取操作之前，“wr\_exp\_cross\_trans”已经达到正确值4并在读取期间保持不变。因此，在这种情况下“wr\_exp\_cross\_trans”是正确的。
+
+\textbf{A2（GPT-4o）：}在大多数情况下“rd\_num”不能反映FIFO内部的数据数量，但异步FIFO中展示的特定情况是一个例外。GPT-4o简单地提供了否定答案和教科书式的解释，且其提出的“rd\_num”计算方法是错误的。
+
+\textbf{人类反馈：}在我们的实证研究中，六位参与者尝试分析该时序图。首先，他们都同意可能会在图~\ref{fig:td-fig1}(B)中提出这些问题以获得对该异步FIFO模块的基本理解。然而，当涉及识别跨时钟域（CDC）问题时，这些参与者犯了错误，尽管FIFO被认为是数字设计者的基础知识。例如，对于Q1，只有两人答对，而其余四人甚至没有头绪。对于Q2，六人中有四人正确回答了“rd\_num”；对于“wr\_num”，情况更糟，只有一人答对。
+
+\subsubsection{SPI协议}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.9\linewidth]{td-interpreter/fig11_spi.png}
+  \caption{完整的SPI协议（从机无内部时钟）}
+  \label{fig:td-fig11}
+\end{figure}
+
+图~\ref{fig:td-fig11}中的时序图展示了一个完整的SPI协议，包含主机模块、从机模块和测试平台。
+
+\textbf{Q1（CTA）：}请描述该协议的事务过程。
+
+\textbf{A1（TD-Interpreter）：}（1）主机写入：测试平台首先从主机内存的地址X读取数据D，然后将数据D写入从机内存的地址X。（2）从机反馈：测试平台从从机内存的地址X取出数据并发回主机，以检查写入操作是否正确。
+
+\textbf{A1（GPT-4o）：}只描述了SPI协议的通用事务过程，忽略了测试平台在主机和从机之间数据传输中的特殊角色。
+
+\textbf{Q2（CTA）：}主机中的“sending\_tmp”如何从测试平台获取地址X和数据D？“MOSI”如何顺序传输位？
+
+\textbf{A2（TD-Interpreter）：}当“m\_cnt”从0变为1时，“sending\_tmp”从“master\_addr”读取地址X。当“m\_cnt”从16变为17时，通过捕获“wdat\_req\_r”的下降沿，主机可以将“wdat”中的数据锁存到“sending\_tmp”。“MOSI”在“SCLK”的每个下降沿传输“sending\_tmp”的位。
+
+\textbf{A2（GPT-4o）：}在“m\_cnt”从16变为17时，错误地捕获了“wdat\_req”的下降沿而非“wdat\_req\_r”。
+
+\textbf{Q3（CTA）：}从机内部的“MISO”信号如何从测试平台中取出“slave\_out\_dat”中的数据？
+
+\textbf{A3（TD-Interpreter）：}这发生在从机反馈期间。在“s\_cnt”等于9时“dat\_rcv\_clk”的下降沿处，“slave\_out\_dat”开始从从机内存的地址X检索数据D。然后“MISO”可以利用s\_cnt=9的后半段持续时间通过组合逻辑采样“slave\_out\_dat”的最高位。接着，“MISO”可以使用s\_cnt=10的整个持续时间处理第二高位，直到s\_cnt=17的前半段，“MISO”采样“slave\_out\_dat”的最低位。由于从机没有内部时钟，“MISO”必须使用组合逻辑。
+
+\textbf{A3（GPT-4o）：}信号“MISO”通常由时序逻辑驱动，但这里的SPI协议表明使用组合逻辑来驱动“MISO”信号更为合理。然而，GPT-4o仍然坚持使用时序逻辑。
+
+\textbf{人类反馈：}在我们的实证研究中，四位参与者尝试分析该时序图。尽管SPI是嵌入式系统中的基础外设协议，当参与者被要求评估该时序图的复杂度时，平均评分达到3.5/5（1表示非常简单，5表示非常复杂），表明他们对许多细节感到困惑。我们因此推断大多数人仅在高层次使用过SPI，因为当他们不得不处理Q1所问的具体事务过程时，他们对解释需求的评分为3.5/5（1表示不需要，5表示非常需要）。我们进一步询问他们是否能够识别A1中提到的X和D的具体值，只有一人答对。有趣的是，只有一半的参与者发现从机模块缺少内部时钟可能导致问题，这意味着从机模块必须由组合逻辑驱动。
+
+\subsection{讨论与局限性}
+
+从实验中，我们观察到GPT-4o在分析时序图内部的详细信息方面面临挑战。对于某些特定的设计场景，GPT-4o通常提供通用的教科书式答案，而没有进行逐案分析。这证明了TD-Interpreter的有用性和有效性。
+
+本文的一个局限性在于采用了WaveDrom的时序图绘制风格，这是由于其简洁性和广泛的使用基础。我们的主要关注点在于使MLLM能够解释时序图。因此，开发支持更多样化时序图表示的前端工具是有必要的。此外，由于资源限制，我们无法构建更大规模的数据集。然而，本工作最重要的贡献在于为行业（特别是其AI赋能部门）提供了一种非常具有表现力的、保护知识产权的低成本方法。此外，使用MLLM帮助工程师理解时序图无疑将吸引众多研发团队。在数据集构建中集成后端验证以及通过强化学习改进MLLM的推理能力，都是有前景的未来研究方向。
+
+
+\section{结论}
+
+我们介绍了TD-Interpreter，这是一个通过在我们生成的时序图和问答对数据集上微调LLaVA而得到的多模态大语言模型。TD-Interpreter能够以图片形式接收时序图，并回答关于设计和验证的自然语言问题。我们展示了TD-Interpreter在丰富的任务集上超越了GPT-4o，同样也超越了未经微调的LLaVA模型。
+
+\section*{致谢}
+
+本项目获得了奥地利FFG和欧洲关键数字技术联合体（KDT JU）的资助（资助协议号101097300）。本项目还得到了芯片联合体和奥地利研究促进署（FFG）通过AIMS5.0项目（欧盟资助协议号101112089）的部分支持。
+
+\putbib[ref/td-interpreter]

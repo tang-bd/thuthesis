@@ -1,149 +1,126 @@
-% !TEX root = ../thuthesis-example.tex
+% !TEX root = ../thuthesis-main.tex
 
-\chapter{图表示例}
+\chapter{问题背景}
 
-\section{插图}
+本章介绍本文研究所涉及的关键技术背景与相关工作。首先介绍关键技术基础，包括大语言模型与多模态大语言模型的基本架构、评价指标、有监督微调与强化学习方法；随后阐述数字电路时序图的定义及其WaveJSON结构化表示格式，这是本文处理的核心对象；然后综述面向硬件设计与时序图分析的已有工作，明确本文的研究定位；最后给出本文的问题定义，将时序图解析建模为两阶段生成任务。
 
-图片通常在 \env{figure} 环境中使用 \cs{includegraphics} 插入，如图~\ref{fig:example} 的源代码。
-建议矢量图片使用 PDF 格式，比如数据可视化的绘图；
-照片应使用 JPG 格式；
-其他的栅格图应使用无损的 PNG 格式。
-注意，LaTeX 不支持 TIFF 格式；EPS 格式已经过时。
+\section{关键技术基础}
 
-\begin{figure}
+\subsection{大语言模型}
+
+本文的时序图解析框架依赖大语言模型的序列建模与代码生成能力。Transformer架构由Vaswani等人于2017年提出\inlinecite{vaswani2017attention}，其核心思想是用自注意力（Self-Attention）机制替代传统的循环或卷积结构来建模序列中的长距离依赖关系。给定输入序列的查询（Query）、键（Key）和值（Value）矩阵$Q$、$K$、$V$，自注意力的计算公式为：
+\begin{equation}
+  \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
+\end{equation}
+其中$d_k$为键向量的维度。多头注意力（Multi-Head Attention）将$Q$、$K$、$V$分别投影至$h$个不同的子空间后并行计算注意力，再将结果拼接投影回原始维度，从而捕获不同位置与不同表示子空间中的信息。Transformer采用编码器-解码器结构，每一层由多头注意力与前馈网络交替组成，并辅以残差连接与层归一化，在机器翻译等序列到序列任务上取得了突破性效果。
+
+在Transformer的基础上，大语言模型（Large Language Model, LLM）采用仅解码器（Decoder-only）架构，通过在大规模文本语料上进行自回归预训练来学习语言的统计规律与语义知识。GPT-2\inlinecite{radford2019language}首次展示了语言模型作为无监督多任务学习器的潜力；GPT-3\inlinecite{brown2020language}通过将参数规模扩展至1750亿证明了少样本上下文学习（In-Context Learning）能力的涌现；GPT-4\inlinecite{achiam2023gpt4}则进一步提升了多步推理与代码生成能力。在开源领域，Meta的LLaMA 2\inlinecite{touvron2023llama}以70亿至700亿参数的规模在多项基准上达到了与闭源模型相当的水平；阿里巴巴的Qwen3\inlinecite{yang2025qwen3}提供了从6亿到2350亿参数的完整模型谱系，同时支持稠密与混合专家（Mixture of Experts, MoE）两种架构；深度求索的DeepSeek-V3\inlinecite{shao2024deepseekv3}则以6710亿总参数、370亿激活参数的MoE架构在代码与数学推理任务上展现了优异性能。这些模型在自然语言理解、代码生成、逻辑推理等任务上已展现出强大的通用能力，为后续面向特定领域的微调应用奠定了基础。
+
+
+\subsection{多模态大语言模型}
+
+本文的核心任务——从时序图图像中提取结构化信息——本质上是一个视觉理解问题，需要模型同时具备图像感知与语言生成能力。多模态大语言模型（Multimodal Large Language Model, MLLM）正是为此类跨模态任务而设计的，它将视觉感知能力与语言理解能力相融合。当前主流MLLM的架构通常由三个模块组成：视觉编码器（Vision Encoder）、投影层（Projector）和语言模型（Language Model）。
+
+视觉编码器负责将输入图像转换为一系列视觉特征向量。视觉Transformer（Vision Transformer, ViT）\inlinecite{dosovitskiy2021image}是当前最主流的视觉编码器架构，它将图像划分为固定大小的图块（Patch），将每个图块线性映射为嵌入向量后送入Transformer编码器进行处理。CLIP\inlinecite{radford2021clip}通过在约4亿对图像-文本数据上进行对比学习预训练，使视觉编码器学会了与语言语义对齐的图像表示，其预训练的ViT编码器被LLaVA、InternVL等多个开源MLLM直接采用作为视觉感知的基础组件。
+
+投影层的作用是将视觉编码器输出的特征映射到语言模型的词嵌入空间中，弥合视觉与语言两种模态之间的表示差异。不同模型采用了不同复杂度的投影策略：LLaVA\inlinecite{liu2023llava}使用简单的线性层或两层MLP作为投影器，以极低的参数开销实现了有效的模态对齐；InternVL\inlinecite{chen2024internvl}则采用了动态高分辨率策略与更深的MLP投影，以适应不同分辨率的视觉输入。
+
+语言模型作为MLLM的核心推理引擎，接收视觉特征与文本指令的拼接序列，以自回归方式生成文本输出。在闭源模型中，GPT-4o\inlinecite{openai2024gpt4o}和Gemini\inlinecite{team2023gemini}在多项视觉理解基准上表现优异；在开源领域，LLaVA\inlinecite{liu2023llava}率先提出了视觉指令微调（Visual Instruction Tuning）范式，通过构造指令跟随格式的视觉问答数据对MLLM进行端到端微调，使轻量级开源模型在视觉理解任务上取得了接近闭源模型的性能。InternVL\inlinecite{chen2024internvl}通过扩大视觉编码器的规模并改进视觉-语言对齐策略，进一步缩小了开源与闭源模型之间的差距。
+
+本文的视觉理解模块基于Qwen-VL系列模型。Qwen2.5-VL\inlinecite{bai2025qwen25vl}在架构设计上引入了原生动态分辨率（Native Dynamic Resolution）机制，允许模型按照图像的原始宽高比进行处理，而非强制裁剪为固定尺寸，从而避免了信息损失。同时，该模型采用多模态旋转位置编码（Multimodal Rotary Position Embedding, MRoPE）来统一处理文本与视觉标记的位置信息。Qwen3-VL\inlinecite{bai2025qwen3vl}在此基础上引入了三项关键改进：
+\begin{enumerate}
+  \item DeepStack融合机制：不同于传统方法仅使用视觉编码器最后一层的输出，DeepStack将多个中间层的视觉特征分别注入到语言模型的不同层中，显著增强了模型对细粒度视觉信息（如小字体文本、密集图表）的感知能力。
+  \item 交错MRoPE（Interleaved-MRoPE）：将旋转位置编码的维度在低频与高频段间交错分配，而非按时间、水平、垂直方向简单分组，改善了长序列场景下的位置编码稳定性。
+  \item 灵活的模型规模：Qwen3-VL同时提供稠密模型（2B/4B/8B/32B参数）与MoE模型（30B-A3B/235B-A22B参数）两类变体，可根据推理延迟与性能需求灵活选择。
+\end{enumerate}
+凭借上述改进，Qwen3-VL在多模态理解基准上取得了领先的性能表现，是本文选用的视觉理解基础模型。
+
+
+\section{数字电路时序图与WaveJSON表示格式}
+
+数字电路时序图以时钟周期为横轴、信号电平为纵轴，直观地展示了数字系统中各信号随时间变化的行为。它是硬件设计与验证中不可或缺的视觉规范：设计者通过时序图定义模块的输入输出关系、状态转移条件以及信号间的时序约束。在工程实践中，时序图广泛出现于通信协议数据手册（如SPI、I2C、UART）、总线协议规范（如AMBA AXI\inlinecite{arm2011axi}、AHB\inlinecite{arm2021ahb}、APB\inlinecite{arm2021apb}）以及模块级的设计文档中。
+
+WaveDrom\inlinecite{wavedrom2024}是一个被广泛使用的开源数字时序图渲染引擎，它接受基于JSON的描述格式WaveJSON作为输入，将其渲染为SVG矢量图。WaveJSON的核心结构是一个包含\texttt{signal}数组的JSON对象，每个信号由\texttt{name}（信号名称）和\texttt{wave}（波形字符串）两个基本字段定义。波形字符串中的每个字符代表一个时钟周期内的信号状态，主要字符及其含义如表~\ref{tab:wavedrom-chars}所示。例如，以下WaveJSON描述了一个包含时钟、使能、数据总线和应答信号的简单时序图：
+\begin{verbatim}
+{ "signal": [
+    { "name": "clk",  "wave": "p......" },
+    { "name": "en",   "wave": "01...0." },
+    { "name": "data", "wave": "x.=.=x.",
+      "data": ["D0", "D1"] },
+    { "name": "ack",  "wave": "0..1.0." }
+  ]
+}
+\end{verbatim}
+其中\texttt{clk}为上升沿时钟信号，字符\texttt{p}定义时钟模式，后续点号使其持续运行。\texttt{en}信号在第二个周期拉高、在第六个周期恢复低电平。\texttt{data}为数据总线信号，每个等号字符标识一个新的数据值，其标签\texttt{D0}与\texttt{D1}由\texttt{data}字段指定。\texttt{ack}信号在第四个周期拉高表示应答、在第六个周期恢复低电平。此外，WaveJSON还支持信号分组、相位偏移、边沿标注等高级特性，能够描述任意复杂度的数字时序图。
+
+\begin{table}[htbp]
   \centering
-  \includegraphics[width=0.5\linewidth]{example-image-a.pdf}
-  \caption*{国外的期刊习惯将图表的标题和说明文字写成一段，需要改写为标题只含图表的名称，其他说明文字以注释方式写在图表下方，或者写在正文中。}
-  \caption{示例图片标题}
-  \label{fig:example}
-\end{figure}
-
-若图或表中有附注，采用英文小写字母顺序编号，附注写在图或表的下方。
-国外的期刊习惯将图表的标题和说明文字写成一段，需要改写为标题只含图表的名称，其他说明文字以注释方式写在图表下方，或者写在正文中。
-
-如果一个图由两个或两个以上分图组成时，各分图分别以 (a)、(b)、(c)...... 作为图序，并须有分图题。
-推荐使用 \pkg{subcaption} 宏包来处理， 比如图~\ref{fig:subfig-a} 和图~\ref{fig:subfig-b}。
-
-\begin{figure}
-  \centering
-  \subcaptionbox{分图 A\label{fig:subfig-a}}
-    {\includegraphics[width=0.35\linewidth]{example-image-a.pdf}}
-  \subcaptionbox{分图 B\label{fig:subfig-b}}
-    {\includegraphics[width=0.35\linewidth]{example-image-b.pdf}}
-  \caption{多个分图的示例}
-  \label{fig:multi-image}
-\end{figure}
-
-
-
-\section{表格}
-
-表应具有自明性。表中参数应标明量和单位的符号。
-为使表格简洁易读，均采用三线表（例如表~\ref{tab:three-line}）。
-必要时可加辅助线，三线表无法清晰表达时可采用其他格式。
-
-表序与表题置于表的上方。表单元格中的文字一般应居中书写（上下居中，左右居中），
-不宜左右居中书写的，可采取两端对齐的方式书写。
-
-\begin{table}
-  \centering
-  \caption{三线表示例}
-  \begin{tabular}{cc}
+  \caption{WaveJSON波形字符及其含义}
+  \label{tab:wavedrom-chars}
+  \begin{tabular}{cl}
     \toprule
-    文件名          & 描述                         \\
+    字符 & 含义 \\
     \midrule
-    thuthesis.dtx   & 模板的源文件，包括文档和注释 \\
-    thuthesis.cls   & 模板文件                     \\
-    thuthesis-*.bst & BibTeX 参考文献表样式文件    \\
+    \texttt{0} / \texttt{1} & 低电平 / 高电平 \\
+    \texttt{p} / \texttt{n} & 上升沿 / 下降沿时钟信号 \\
+    \texttt{P} / \texttt{N} & 带箭头标记的上升沿 / 下降沿时钟信号 \\
+    \texttt{=} & 数据总线信号（默认颜色），标签由\texttt{data}字段指定 \\
+    \texttt{2}--\texttt{9} & 不同颜色的数据总线信号，标签由\texttt{data}字段指定 \\
+    \texttt{x} & 未定义或无关状态 \\
+    \texttt{.} & 保持前一周期状态不变 \\
     \bottomrule
   \end{tabular}
-  \label{tab:three-line}
 \end{table}
 
-若表中有附注，采用英文小写字母顺序编号，附注写在表的下方。
-推荐使用 \pkg{threeparttable} 宏包。
-
-\begin{table}
-  \centering
-  \begin{threeparttable}[c]
-    \caption{带附注的表格示例}
-    \label{tab:three-part-table}
-    \begin{tabular}{cc}
-      \toprule
-      文件名                 & 描述                         \\
-      \midrule
-      thuthesis.dtx\tnote{a} & 模板的源文件，包括文档和注释 \\
-      thuthesis.cls\tnote{b} & 模板文件                     \\
-      thuthesis-*.bst        & BibTeX 参考文献表样式文件    \\
-      \bottomrule
-    \end{tabular}
-    \begin{tablenotes}
-      \item [a] 可以通过 xelatex 编译生成模板的使用说明文档；
-        使用 xetex 编译 \file{thuthesis.ins} 时则会从 \file{.dtx} 中去除掉文档和注释，得到精简的 \file{.cls} 文件。
-      \item [b] 更新模板时，一定要记得编译生成 \file{.cls} 文件，否则编译论文时载入的依然是旧版的模板。
-    \end{tablenotes}
-  \end{threeparttable}
-\end{table}
-
-如某个表需要转页接排，可以“续表”的形式另页打印，格式同前，只需在每页表序前加“续”字即可。
-续表均应重复表头。
-推荐使用 \pkg{longtable} 宏包。
-
-\begin{longtable}{cccc}
-    \caption{跨页长表格的表题}
-    \label{tab:longtable} \\
-    \toprule
-    表头 1 & 表头 2 & 表头 3 & 表头 4 \\
-    \midrule
-  \endfirsthead
-    \caption*{续表~\thetable\quad 跨页长表格的表题} \\
-    \toprule
-    表头 1 & 表头 2 & 表头 3 & 表头 4 \\
-    \midrule
-  \endhead
-    \bottomrule
-  \endfoot
-  Row 1  & & & \\
-  Row 2  & & & \\
-  Row 3  & & & \\
-  Row 4  & & & \\
-  Row 5  & & & \\
-  Row 6  & & & \\
-  Row 7  & & & \\
-  Row 8  & & & \\
-  Row 9  & & & \\
-  Row 10 & & & \\
-\end{longtable}
+在本文的数据生成流水线中，WaveJSON既是时序图的结构化中间表示格式，也是渲染图像的输入。具体流程为：首先利用Icarus Verilog\inlinecite{williams2024iverilog}对Verilog模块及其测试平台进行仿真，生成标准的VCD（Value Change Dump）波形文件；随后通过开源工具vcd2wavedrom\inlinecite{toroid2024vcd2wavedrom}将VCD文件转换为WaveJSON格式；最终由wavedrom-cli\inlinecite{wavedrom2024cli}将WaveJSON渲染为时序图图像。这一流程实现了从HDL源代码到时序图图像及其结构化表示的全自动生成，为训练数据的大规模构建奠定了基础。
 
 
+\subsection{评价指标}
 
-\section{算法}
+通用预训练模型虽已具备一定的图表理解能力，但在时序图这类高度专业化的技术图表上表现仍有不足，需要通过针对性的训练加以提升。然而，训练与优化的前提是拥有能够准确衡量模型输出质量的评价指标。
 
-算法环境可以使用 \pkg{algorithms} 或者 \pkg{algorithm2e} 宏包。
+在自然语言处理领域，BLEU\inlinecite{papineni2002bleu}与ROUGE\inlinecite{lin2004rouge}是两种被广泛使用的自动化评价指标。BLEU基于$n$-gram精确率衡量生成文本与参考文本的匹配程度，ROUGE则侧重于召回率。然而，这类基于文本表面形式的指标在评估结构化输出时存在固有局限：它们对元素的排列顺序敏感，却对语义关键信息的错误缺乏区分度。当评估对象从自然语言文本转变为WaveJSON等结构化表示时，需要设计能够捕捉结构语义正确性的专用评价指标。这类指标不仅服务于模型效果的离线评估，还可以作为奖励信号引入强化学习框架，为模型的训练优化提供定量反馈。
 
-\renewcommand{\algorithmicrequire}{\textbf{输入：}\unskip}
-\renewcommand{\algorithmicensure}{\textbf{输出：}\unskip}
+\subsection{有监督微调}
 
-\begin{algorithm}
-  \caption{Calculate $y = x^n$}
-  \label{alg1}
-  \small
-  \begin{algorithmic}
-    \REQUIRE $n \geq 0$
-    \ENSURE $y = x^n$
+有监督微调（Supervised Fine-Tuning, SFT）是使预训练模型适应特定任务的基本手段。SFT利用任务的标注数据对模型进行进一步训练，通过向模型展示输入-输出对的示例，使其学会目标任务的输入输出映射。在MLLM的应用场景中，SFT通常采用视觉指令微调范式\inlinecite{liu2023llava}：将图像与文本指令拼接作为输入，以期望的文本回答作为监督信号，端到端地优化模型的语言生成参数。
 
-    \STATE $y \leftarrow 1$
-    \STATE $X \leftarrow x$
-    \STATE $N \leftarrow n$
+由于大语言模型的参数量通常达到数十亿甚至千亿级别，对全部参数进行微调的计算开销极为庞大。LoRA（Low-Rank Adaptation）\inlinecite{hu2021lora}通过在预训练权重矩阵旁引入可训练的低秩分解矩阵来大幅减少可训练参数量。具体而言，对于预训练权重矩阵$W_0 \in \mathbb{R}^{d \times k}$，LoRA将增量参数化为$\Delta W = BA$，其中$B \in \mathbb{R}^{d \times r}$、$A \in \mathbb{R}^{r \times k}$，秩$r \ll \min(d, k)$。训练过程中仅更新$A$和$B$，而$W_0$保持冻结，使可训练参数量降低数个数量级，同时保持与全参数微调相当的性能。
 
-    \WHILE{$N \neq 0$}
-      \IF{$N$ is even}
-        \STATE $X \leftarrow X \times X$
-        \STATE $N \leftarrow N / 2$
-      \ELSE[$N$ is odd]
-        \STATE $y \leftarrow y \times X$
-        \STATE $N \leftarrow N - 1$
-      \ENDIF
-    \ENDWHILE
-  \end{algorithmic}
-\end{algorithm}
+\subsection{强化学习}
+
+SFT使模型掌握了基本的任务能力，但其训练目标仅为最大化标注数据的似然，无法直接优化任务的最终评价指标。强化学习可弥补这一不足。基于可验证奖励的强化学习（Reinforcement Learning with Verifiable Rewards, RLVR）利用可自动验证的客观指标作为奖励信号，而非依赖人工偏好数据训练奖励模型。RLVR特别适用于具有明确正确性判据的任务，例如数学求解中答案的正确与否、代码生成中编译与测试的通过与否。在本文中，功能仿真的通过与否即为一种天然的可验证奖励信号。
+
+群体相对策略优化（Group Relative Policy Optimization, GRPO）\inlinecite{shao2024deepseekmath}是RLVR框架下的一种高效策略优化算法。与近端策略优化（Proximal Policy Optimization, PPO）\inlinecite{schulman2017proximal}需要额外训练价值网络来估计优势函数不同，GRPO通过对同一输入采样一组候选输出，以组内各输出的奖励相对排名来估计优势值。设对输入$x$采样$G$个输出$\{y_1, \ldots, y_G\}$，每个输出获得奖励$r_i$，则第$i$个输出的优势估计为：
+\begin{equation}
+  \hat{A}_i = \frac{r_i - \text{mean}(\{r_1, \ldots, r_G\})}{\text{std}(\{r_1, \ldots, r_G\})}
+\end{equation}
+这一设计消除了训练价值网络的额外开销，同时通过组内相对比较提供了稳定的优化信号。GRPO的优化目标结合KL散度正则化项，在提升生成质量的同时防止策略偏离预训练模型过远。
+
+
+\section{相关工作}
+
+\subsection{大语言模型在硬件设计中的应用}
+
+利用大语言模型自动生成硬件描述语言代码是近年来EDA领域的热门研究方向。在评测基准方面，Liu等人\inlinecite{liu2023verilogeval}提出的VerilogEval包含了从HDLBits题库中收集的Verilog代码补全任务，是该领域最具代表性的评测基准之一。在模型研发方面，Thakur等人\inlinecite{thakur2023benchmarking,thakur2024verigen}系统评估了通用LLM在Verilog生成任务上的表现，并通过在Verilog语料上微调CodeGen模型得到了VeriGen，证明了领域微调的有效性。NVIDIA团队的ChipNeMo\inlinecite{liu2023chipnemo}通过对LLaMA进行芯片设计领域的持续预训练与微调，在工程助手、代码生成等任务上大幅超越了通用模型。此外，Blocklove等人\inlinecite{blocklove2023chip}探索了基于LLM的对话式硬件设计，Fu等人\inlinecite{fu2023gpt4aigchip}将LLM应用于AI加速器的设计自动化。
+
+在多模态输入方面，Chang等人\inlinecite{chang2024natural}利用电路框图、状态转移图等视觉输入辅助Verilog代码生成，在GPT-4系列模型上将测试通过率从46.88\%提升至71.81\%，证明了视觉信息对硬件代码生成的辅助价值，但该工作并未关注时序图的解析与理解。上述工作表明，LLM已具备理解硬件语义并生成功能正确代码的初步能力，但将视觉化的时序规范纳入自动化流程的研究仍处于空白。
+
+\subsection{时序图自动化分析}
+
+时序图的形式化处理有着较长的研究历史。Fisler\inlinecite{fisler1999timing}较早地对时序图进行了形式化定义，提出了基于时间区间的算法验证方法。Maler与Nickovic\inlinecite{maler2004monitoring}提出了针对连续信号时序属性的监控方法，Bartocci等人\inlinecite{bartocci2022survey}则对信号时序逻辑（Signal Temporal Logic, STL）规范的挖掘方法进行了全面综述。这些工作为时序行为的形式化描述与验证奠定了理论基础，但其输入通常为结构化的信号数据而非图像。
+
+在从时序图图像中自动提取信息方面，He等人\inlinecite{he2023tdmagic}提出的TD-Magic是较早的尝试，它通过OCR、边缘检测等计算机视觉技术从时序图图像中提取严格偏序（Strict Partial Order, SPO）关系作为形式化规范。但该方法基于规则的多模块设计限制了其处理复杂场景的能力，且仅适用于包含显式偏序关系的少数时序图。同一团队后续提出的TD-Interpreter\inlinecite{he2025tdinterpreter}采用了截然不同的技术路线，通过对开源MLLM LLaVA进行微调，构建了一个面向时序图的视觉问答系统。该工作开发了包含描述型与推理型两类合成数据的生成流程，使微调后的模型在时序图理解任务上大幅超越了未经微调的GPT-4o，证明了通过领域特定数据微调MLLM以理解时序图的可行性。
+
+本文的工作与上述方法存在本质区别。TD-Magic局限于提取偏序关系这一单一类型的形式化规范；TD-Interpreter定位为交互式问答工具，其输出为自然语言回答，不涉及结构化信息的提取或代码生成。而本文将时序图解析建模为从图像到结构化表示、再到HDL代码的生成式流水线，旨在实现对时序图完整信息的提取与硬件行为的逆向工程，在任务深度与实用价值上均超越了现有工作。
+
+
+\section{问题定义}\label{sec:problem-def}
+
+本文将数字电路时序图的自动化解析形式化为以下两阶段生成任务。
+
+\textbf{第一阶段：时序图图像到结构化表示。}给定一张时序图图像$I$，模型需要生成对应的WaveJSON结构化表示$J$。$J$包含一个信号数组，每个信号由名称（\texttt{name}）和波形字符串（\texttt{wave}）组成，多位数据信号还包含数值标签（\texttt{data}）。该阶段要求模型从像素级的视觉输入中准确识别所有信号的名称、电平序列与时钟关系，并将其编码为结构化的文本表示。
+
+\textbf{第二阶段：结构化表示到HDL代码。}给定第一阶段输出的WaveJSON表示$J$，模型需要生成能够产生相同时序行为的可综合Verilog模块$V$。该阶段要求模型从信号的时序变化中推理出底层的硬件逻辑——包括组合逻辑关系、有限状态机的状态转移、计数器与移位寄存器等时序电路结构——并将其转化为语法正确且功能等价的RTL代码。
+
+上述定义中，第一阶段输出的结构化表示$J$除了作为第二阶段的输入外，本身也具有独立的应用价值，可直接用于自动化验证、协议一致性检查等下游任务。

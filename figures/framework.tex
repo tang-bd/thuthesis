@@ -1,0 +1,116 @@
+\documentclass[border=6pt]{standalone}
+\usepackage[UTF8]{ctex}
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta, fit, backgrounds, calc}
+
+\definecolor{mfill}{HTML}{DAEAF6}
+\definecolor{medge}{HTML}{2E75B6}
+\definecolor{dfill}{HTML}{FFF2CC}
+\definecolor{dedge}{HTML}{BF8F00}
+\definecolor{pfill}{HTML}{E2EFDA}
+\definecolor{pedge}{HTML}{548235}
+\definecolor{ffill}{HTML}{F8D7DA}
+\definecolor{fedge}{HTML}{C0504D}
+\definecolor{synthbg}{HTML}{F2F2F2}
+\definecolor{ac}{HTML}{404040}
+
+\begin{document}
+\begin{tikzpicture}[
+    >=Stealth,
+    data/.style={draw=dedge, fill=dfill, rounded corners=2pt,
+        minimum height=0.9cm, align=center, font=\small, inner sep=4pt},
+    model/.style={draw=medge, fill=mfill, rounded corners=4pt, line width=1pt,
+        minimum height=1.3cm, align=center, font=\small, inner sep=5pt},
+    proc/.style={draw=pedge, fill=pfill, rounded corners=2pt,
+        minimum height=0.9cm, align=center, font=\small, inner sep=4pt},
+    filt/.style={draw=fedge, fill=ffill, rounded corners=3pt,
+        align=center, font=\small, inner sep=5pt},
+    tbox/.style={draw=black!30, fill=white, rounded corners=2pt,
+        align=center, font=\small, inner sep=5pt},
+    arr/.style={->, line width=0.8pt, ac},
+    darr/.style={->, line width=0.8pt, ac, densely dashed},
+    slabel/.style={font=\normalsize\bfseries},
+    % uniform width for synthesis pipeline nodes
+    sp/.style={proc, minimum width=2.2cm, minimum height=1.3cm},
+    sd/.style={data, minimum width=2.2cm, minimum height=1.3cm},
+]
+
+% ============================================================
+% BOTTOM: Inference Pipeline
+% ============================================================
+\node[data] (inp) at (0,0) {时序图\\图像};
+\node[model, right=0.6cm of inp] (m1) {第一阶段\\{\footnotesize Qwen3-VL-4B-Instruct}\\{\footnotesize (多模态大语言模型)}};
+\node[data, right=0.6cm of m1] (wjm) {WaveJSON\\结构化表示};
+\node[model, right=0.6cm of wjm] (m2) {第二阶段\\{\footnotesize Qwen3-8B}\\{\footnotesize (文本大语言模型)}};
+\node[data, right=0.6cm of m2] (outp) {Verilog\\代码};
+
+\draw[arr] (inp) -- (m1);
+\draw[arr] (m1) -- (wjm);
+\draw[arr] (wjm) -- (m2);
+\draw[arr] (m2) -- (outp);
+
+% Geometric center of the whole figure
+\path let \p1=(inp.west), \p2=(outp.east) in
+    coordinate (fig_cx) at ({(\x1+\x2)/2}, 0);
+
+\node[slabel] at ($(fig_cx)+(0,-1.1)$) {推理阶段};
+
+% ============================================================
+% LAYER 2: Training Data Pairs
+% ============================================================
+\node[tbox, above=1.3cm of m1] (t1) {SFT训练\\(图像, WaveJSON) 对};
+\node[tbox, above=1.3cm of m2] (t2) {SFT + RLVR训练\\(WaveJSON, Verilog) 对};
+
+\draw[darr] (t1) -- (m1);
+\draw[darr] (t2) -- (m2);
+
+% ============================================================
+% LAYER 3: Quality Filter — centered at fig_cx
+% ============================================================
+\coordinate (filt_y_ref) at ($(t1.north)!0.5!(t2.north)+(0,1.0)$);
+\node[filt] (filt) at (fig_cx |- filt_y_ref) {数据质量过滤 + 防泄漏数据划分};
+
+\draw[arr] (filt.south) -- ++(0,-0.35) -| (t1.north);
+\draw[arr] (filt.south) -- ++(0,-0.35) -| (t2.north);
+
+% ============================================================
+% LAYER 4: Triplet annotation — centered at fig_cx
+% ============================================================
+\node[font=\small, align=center] (triplet)
+    at ($(fig_cx |- filt.north)+(0,0.7)$)
+    {训练数据三元组：（时序图图像，WaveJSON，Verilog源代码）};
+\draw[arr] (triplet.south) -- (filt.north);
+
+% ============================================================
+% TOP: Data Synthesis Pipeline
+% All nodes use uniform minimum width (2.2cm) so p3 is the
+% true geometric center of the pipeline.
+% ============================================================
+\coordinate (synth_ref) at ($(fig_cx |- triplet.north)+(0,1.6)$);
+
+\node[sp] (p3) at (synth_ref) {格式转换\\{\tiny(vcd2wavedrom)}};
+\node[sp, left=0.25cm of p3]  (p2) {功能仿真\\{\tiny(Icarus Verilog)}};
+\node[sp, left=0.25cm of p2]  (p1) {测试平台\\生成};
+\node[sd, left=0.25cm of p1]  (vsrc) {Verilog\\源代码};
+\node[sd, right=0.25cm of p3] (wj0) {WaveJSON};
+\node[sp, right=0.25cm of wj0] (p4) {图像渲染\\{\tiny(wavedrom-cli)}};
+\node[sd, right=0.25cm of p4] (im0) {时序图\\图像};
+
+\draw[arr] (vsrc) -- (p1);
+\draw[arr] (p1) -- (p2);
+\draw[arr] (p2) -- (p3);
+\draw[arr] (p3) -- (wj0);
+\draw[arr] (wj0) -- (p4);
+\draw[arr] (p4) -- (im0);
+
+\begin{scope}[on background layer]
+    \node[fill=synthbg, rounded corners=6pt, inner sep=10pt,
+        fit=(vsrc)(im0)] (sbox) {};
+\end{scope}
+\node[slabel, anchor=south] at (sbox.north) {数据合成链路};
+
+% Vertical arrow at fig_cx — guaranteed straight down
+\draw[arr] (sbox.south -| fig_cx) -- (triplet.north);
+
+\end{tikzpicture}
+\end{document}

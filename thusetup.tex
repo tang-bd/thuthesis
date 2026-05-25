@@ -1,4 +1,4 @@
-% !TEX root = ./thuthesis-example.tex
+% !TEX root = ./thuthesis-main.tex
 
 % 论文基本信息配置
 
@@ -21,9 +21,8 @@
   % 标题
   %   可使用“\\”命令手动控制换行
   %
-  title  = {清华大学学位论文 \LaTeX{} 模板\\使用示例文档 v\version},
-  title* = {An Introduction to \LaTeX{} Thesis Template of Tsinghua
-            University v\version},
+  title  = {基于多模态大语言模型的数字电路时序图解析},
+  title* = {Digital Timing Diagram Parsing Based on Multimodal Large Language Models},
   %
   % 学科门类
   %   1. 学术型
@@ -42,8 +41,9 @@
   %      Doctor of Education, Master of Engineering
   %   3. 本科生不需要填写
   %
-  degree-category  = {工学硕士},
-  degree-category* = {Master of Science},
+  % 本科生不需要填写
+  % degree-category  = {工学硕士},
+  % degree-category* = {Master of Science},
   %
   % 培养单位
   %   填写所属院系的全名
@@ -67,8 +67,8 @@
   %
   % 姓名
   %
-  author  = {薛瑞尼},
-  author* = {Xue Ruini},
+  author  = {汤秉达},
+  author* = {Tang Binda},
   %
   % 学号
   % 仅当书写开题报告时需要（同时设置 `thesis-type = proposal'）
@@ -78,13 +78,13 @@
   % 指导教师
   %   中文姓名和职称之间以英文逗号“,”分开，下同
   %
-  supervisor  = {郑纬民, 教授},
-  supervisor* = {Professor Zheng Weimin},
+  supervisor  = {喻文健, 教授},
+  supervisor* = {Professor Yu Wenjian},
   %
   % 副指导教师
   %
-  associate-supervisor  = {陈文光, 教授},
-  associate-supervisor* = {Professor Chen Wenguang},
+  % associate-supervisor  = {陈文光, 教授},
+  % associate-supervisor* = {Professor Chen Wenguang},
   %
   % 联合指导教师
   %
@@ -155,8 +155,8 @@
 
 % 参考文献使用 BibTeX + natbib 宏包
 % 顺序编码制
-\usepackage[sort]{natbib}
-\bibliographystyle{thuthesis-numeric}
+% \usepackage[sort]{natbib}
+% \bibliographystyle{thuthesis-numeric}
 
 % 著者-出版年制
 % \usepackage{natbib}
@@ -167,8 +167,8 @@
 % \bibliographystyle{cell}
 
 % 本科生参考文献的著录格式
-% \usepackage[sort]{natbib}
-% \bibliographystyle{thuthesis-bachelor}
+\usepackage[sort]{natbib}
+\bibliographystyle{thuthesis-bachelor}
 
 % 参考文献使用 BibLaTeX 宏包
 % \usepackage[style=thuthesis-numeric]{biblatex}

@@ -1,76 +1,308 @@
-% !TEX root = ../thuthesis-example.tex
+% !TEX root = ../thuthesis-main.tex
 
-\chapter{引用文献的标注}
-
-模板支持 BibTeX 和 BibLaTeX 两种方式处理参考文献。
-下文主要介绍 BibTeX 配合 \pkg{natbib} 宏包的主要使用方法。
+\chapter{实验结果}
 
 
-\section{顺序编码制}
+\section{数据集构建与分析}
 
-在顺序编码制下，默认的 \cs{cite} 命令同 \cs{citep} 一样，序号置于方括号中，
-引文页码会放在括号外。
-统一处引用的连续序号会自动用短横线连接。
+本节介绍训练数据集的构建过程与统计特征。
 
-\thusetup{
-  cite-style = super,
-}
-\noindent
-\begin{tabular}{l@{\quad$\Rightarrow$\quad}l}
-  \verb|\cite{zhangkun1994}|               & \cite{zhangkun1994}               \\
-  \verb|\citet{zhangkun1994}|              & \citet{zhangkun1994}              \\
-  \verb|\citep{zhangkun1994}|              & \citep{zhangkun1994}              \\
-  \verb|\cite[42]{zhangkun1994}|           & \cite[42]{zhangkun1994}           \\
-  \verb|\cite{zhangkun1994,zhukezhen1973}| & \cite{zhangkun1994,zhukezhen1973} \\
-\end{tabular}
+\subsection{数据规模}
+
+本文的数据源为公开数据集Verilog\_GitHub\inlinecite{thakur2024verigen}，该数据集从GitHub公开仓库中收集了108{,}971个Verilog源文件。经过第~\ref{chap:method}~章所述的多层级筛选流程后，最终保留5{,}847个有效模块用于数据合成。
+
+从108{,}971个原始文件到最终5{,}847个有效样本，整体保留率约为5.4\%。大量文件在筛选过程中被排除，主要原因包括：Icarus Verilog编译错误（语法不合规或使用了不支持的语言特性）、仿真运行失败（如死循环导致超时、信号未正确初始化等）、依赖外部文件（\texttt{`include}指令、\texttt{\$readmemh}系统调用）导致无法独立仿真、包含多模块定义、属于工艺库标准单元而非可综合RTL设计，以及仿真产出的图像尺寸或信号数量超出合理范围等。
+
+\subsection{模块功能多样性}
+
+为评估数据集覆盖的电路功能类型，本文基于模块名称的自动化分段匹配对5{,}847个模块进行了功能分类。具体方法为：首先从测试平台文件中提取被测模块（DUT）的Verilog模块名；然后将模块名按下划线与驼峰命名边界拆分为词段序列（例如\texttt{axi\_protocol\_converter\_v2\_1\_b2s\_simple\_fifo}拆分为\texttt{[axi, protocol, converter, ..., simple, fifo]}）；接着将每个词段与预定义的关键词-类别映射表进行匹配，该映射表的关键词来源于对全部2{,}362个不同模块名的词段频率统计，选取出现频率最高的功能性词段（如\texttt{fifo}、\texttt{fsm}、\texttt{counter}、\texttt{mux}等）作为类别关键词。关键词分为两个层级：功能关键词（描述电路功能，如\texttt{fifo}、\texttt{counter}）与上下文关键词（描述总线接口，如\texttt{axi}、\texttt{spi}、\texttt{uart}）。分类规则为：当模块名中恰好出现一个功能关键词时，归入对应类别；仅出现上下文关键词时，归入通信控制器；出现多个不同类别的功能关键词时，为避免歧义，保守地归入“其他”类别。分类结果如表~\ref{tab:module-category}所示。
+
+\begin{table}[htbp]
+  \centering
+  \caption{数据集模块功能分类统计}
+  \label{tab:module-category}
+  \begin{tabular}{lrr}
+    \toprule
+    功能类别 & 模块数 & 占比 \\
+    \midrule
+    通信控制器 & 540 & 9.2\% \\
+    FIFO & 350 & 6.0\% \\
+    时钟与同步 & 258 & 4.4\% \\
+    状态机 & 197 & 3.4\% \\
+    多路选择器 & 170 & 2.9\% \\
+    算术逻辑单元 & 166 & 2.8\% \\
+    存储器 & 161 & 2.8\% \\
+    定时器 & 129 & 2.2\% \\
+    计数器 & 125 & 2.1\% \\
+    GPIO与外设 & 76 & 1.3\% \\
+    编解码器 & 50 & 0.9\% \\
+    CRC与校验 & 47 & 0.8\% \\
+    寄存器堆 & 36 & 0.6\% \\
+    移位寄存器 & 35 & 0.6\% \\
+    其他 & 3{,}507 & 60.0\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+基于模块名的分类方法具有高精确度——每个分类结果均可直接从模块名验证，且分类规则不涉及任何启发式歧义消解。为评估分类的可靠性，本文将模块名分类结果与LLM生成测试平台时输出的模块功能描述文本进行交叉验证：对每个被分类的模块，检查其LLM分析文本中是否包含与分类类别相关的功能关键词。交叉验证结果显示，95.6\%的分类结果被LLM分析文本所确认，其中6个类别的确认率达到100\%，表明基于模块名的分类具有较高的可靠性。未被确认的4.4\%主要来自LLM分析文本未显式提及功能关键词的情况（如仅列出端口表而未描述模块功能），而非实际的分类错误。
+
+约40\%的模块被成功分类。通信控制器占比最高（9.2\%），主要来源于AXI、SPI、UART、PCIe等总线接口与串行通信接口的子模块；FIFO（6.0\%）与时钟同步电路（4.4\%）紧随其后，反映了数据缓冲与跨时钟域同步在数字设计中的普遍性。算术逻辑单元（2.8\%）包含整数运算器与浮点运算子模块，存储器（2.8\%）涵盖了单端口与双端口RAM、ROM、缓存等。状态机、多路选择器、定时器、计数器等常见功能模块均有分布。“其他”类别（60.0\%）的构成较为多样，主要包括以下几类：项目专用名称或缩写无法自动识别功能的模块（如\texttt{csrbrg}、\texttt{ablk}等），含有通用功能词但语义过于宽泛的模块（如各类\texttt{controller}、\texttt{control}模块），FPGA IP核中的数据通路适配子模块（如总线宽度转换器\texttt{DecWidthConverter}、协议适配器\texttt{MM\_to\_ST\_Adapter}等），VGA显示控制器、边沿检测器等占比较小的功能类别，以及少量多关键词冲突而保守归入“其他”的模块。整体而言，已分类模块涵盖了从基础逻辑单元到中等复杂度时序电路的广泛功能类型，表明数据集具备良好的功能多样性。
+
+\subsection{信号数量分布}
+
+每个样本的信号数量反映了对应电路模块的端口复杂度。数据集中样本的信号数量分布如表~\ref{tab:signal-dist}所示。
+
+\begin{table}[htbp]
+  \centering
+  \caption{样本信号数量分布}
+  \label{tab:signal-dist}
+  \begin{tabular}{crr}
+    \toprule
+    信号数 & 样本数 & 占比 \\
+    \midrule
+    3--4 & 542 & 9.3\% \\
+    5--6 & 1{,}242 & 21.2\% \\
+    7--8 & 1{,}469 & 25.1\% \\
+    9--10 & 1{,}215 & 20.8\% \\
+    11--12 & 765 & 13.1\% \\
+    13--15 & 614 & 10.5\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+信号数量主要集中在5至10个之间，占比约67\%，中位数为8个信号。这一分布覆盖了从简单门电路（3--4个端口）到中等复杂度模块（13--15个端口）的广泛范围，为模型训练提供了不同复杂度层次的样本。
+
+\subsection{Verilog代码长度分布}
+
+Verilog源代码的长度反映了模块的逻辑复杂度，同时也决定了第二阶段模型生成任务的难度。本文在去除注释与空行后，分别统计了各样本的有效代码行数与词元（Token）数，分布如图~\ref{fig:code-length}所示。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{figures/code_length_dist.pdf}
+  \caption{Verilog代码长度分布}
+  \label{fig:code-length}
+\end{figure}
+
+代码行数的中位数为61行，均值为89行，主要集中在21至120行之间（约75\%）。词元数的中位数为350，均值为536，主要集中在101至700之间（约78\%）。两个维度均呈现右偏分布，少数大型模块（如总线协议控制器、多级流水线运算单元）的代码长度显著高于平均水平。整体而言，数据集中的模块以中等规模为主，兼顾了训练效率与逻辑复杂度的多样性。
+
+\subsection{数据划分}
+
+经过第~\ref{chap:method}~章所述的防泄漏划分策略，5{,}847个样本被划分为训练集5{,}730个与测试集117个。两个阶段的训练与评估均使用相同的划分方案。
+
+\subsection{时序图样本示例与激励方案对比}
+
+本节通过具体样本展示两种测试平台生成方案产生的时序图差异，以直观说明激励质量对训练数据的影响。
+
+\textbf{状态机对比。}%
+图~\ref{fig:fsm-comparison}展示了一个多状态FSM模块在两种激励下的时序图。该模块以两个输入信号\texttt{a}、\texttt{b}驱动状态转移，通过3位输出\texttt{dout}指示当前状态。随机激励方案中，gentbvlog正确识别了时钟信号并生成了周期性驱动，但将其余三个输入端口（复位与两路输入）打包为一个3位数组，统一由\texttt{\$random}驱动。随机的复位信号使模块长时间处于复位状态，释放后输入序列也缺乏功能语义，导致状态机几乎始终停留在同一状态，输出\texttt{dout}在整个仿真过程中仅出现极少数值变化。LLM激励方案在分析模块的状态转移逻辑后，设计了覆盖性的输入序列：先完成规范的复位初始化，随后系统地组合\texttt{a}与\texttt{b}的不同取值，驱动状态机遍历各个状态转移路径。输出\texttt{dout}在20个时钟周期内循环经过全部状态值，完整展示了状态机的转移行为。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{minipage}{\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/samples/fsm.png}
+    \centerline{（a）随机激励}
+  \end{minipage}
+  \vspace{0.5em}
+  \begin{minipage}{\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/samples/fsm_llm.png}
+    \centerline{（b）LLM激励}
+  \end{minipage}
+  \caption{同一状态机模块在两种激励方案下的时序图对比}
+  \label{fig:fsm-comparison}
+\end{figure}
+
+\textbf{FIFO对比。}%
+图~\ref{fig:fifo-comparison}展示了同一8位FIFO模块在两种激励下的时序图。两种方案均使用了正确的周期性时钟，差异完全来自激励策略。随机激励方案将复位、入队使能（\texttt{push}）、出队使能（\texttt{pop}）与8位数据输入打包为一个11位数组，由\texttt{\$random}统一驱动。产生的时序图中，复位信号在仿真初期长时间保持有效，使FIFO大部分时间处于复位状态；入队与出队使能信号的跳变缺乏协调，数据输入端口呈现无意义的随机十六进制值（\texttt{A4}、\texttt{D0}、\texttt{C1}等），\texttt{full}与\texttt{empty}标志始终不变，数据输出\texttt{data\_out}几乎为常量，FIFO的核心功能未能被激活。LLM激励方案在分析模块功能后设计了结构化的操作序列：先短暂断言复位信号完成初始化，随后进入入队阶段依次写入具有工程辨识度的测试向量（\texttt{0xAA}、\texttt{0x55}、\texttt{0xFF}、\texttt{0x33}、\texttt{0xCC}等），当FIFO写满时\texttt{full}标志正确置位；接着进入出队阶段，\texttt{data\_out}按先入先出顺序依次输出此前写入的数据，\texttt{empty}标志在FIFO清空时正确置位。两个标志位的状态翻转清晰可见，完整展示了FIFO的缓冲与流控行为。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{minipage}{\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/samples/fifo2.png}
+    \centerline{（a）随机激励}
+  \end{minipage}
+  \vspace{0.5em}
+  \begin{minipage}{\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/samples/fifo2_llm.png}
+    \centerline{（b）LLM激励}
+  \end{minipage}
+  \caption{同一FIFO模块在两种激励方案下的时序图对比}
+  \label{fig:fifo-comparison}
+\end{figure}
+
+上述两组对比揭示了随机激励方案的核心局限：缺乏功能语义的激励序列使得模块的关键行为模式（状态遍历、标志位翻转等）无法在仿真中被充分激活，产生的时序图对模型训练贡献有限。LLM激励方案通过理解模块功能语义生成有目的的激励，使时序图能够充分展示模块的各种工作状态，为模型提供更具区分度的训练样本。同时，高覆盖率的激励序列也使得第二阶段的仿真对拍评估更加可靠——随机激励下大量输出信号保持常量，即使生成代码存在功能错误也可能碰巧通过对拍；而LLM激励充分激活了模块的各种工作状态，使对拍结果能够更有效地检测生成代码的功能缺陷。
+
+图~\ref{fig:sample-diversity}展示了数据集中不同功能类别模块的时序图样本，体现了数据集在信号类型与波形模式上的多样性。全加器模块以组合逻辑为主，输入与输出均为多位数据总线，波形呈现密集的数据标签变化；UART控制器模块展示了串行通信接口的握手信号交互模式；RAM模块则呈现了存储器读写操作的典型地址-数据时序关系。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{minipage}{\textwidth}
+    \centering
+    \includegraphics[width=0.7\textwidth]{figures/samples/adder.png}
+    \centerline{（a）全加器（\texttt{Calculator\_Full\_Adder}）}
+  \end{minipage}
+  \vspace{0.5em}
+  \begin{minipage}{\textwidth}
+    \centering
+    \includegraphics[width=0.7\textwidth]{figures/samples/uart.png}
+    \centerline{（b）UART控制器（\texttt{uart\_ctrl}）}
+  \end{minipage}
+  \vspace{0.5em}
+  \begin{minipage}{\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/samples/ram.png}
+    \centerline{（c）RAM存储器（\texttt{ram}）}
+  \end{minipage}
+  \caption{数据集中不同功能类别的时序图样本}
+  \label{fig:sample-diversity}
+\end{figure}
 
 
-也可以取消上标格式，将数字序号作为文字的一部分。
-建议全文统一使用相同的格式。
+\section{评价指标有效性分析}
 
-\thusetup{
-  cite-style = inline,
-}
-\noindent
-\begin{tabular}{l@{\quad$\Rightarrow$\quad}l}
-  \verb|\cite{zhangkun1994}|               & \cite{zhangkun1994}               \\
-  \verb|\citet{zhangkun1994}|              & \citet{zhangkun1994}              \\
-  \verb|\citep{zhangkun1994}|              & \citep{zhangkun1994}              \\
-  \verb|\cite[42]{zhangkun1994}|           & \cite[42]{zhangkun1994}           \\
-  \verb|\cite{zhangkun1994,zhukezhen1973}| & \cite{zhangkun1994,zhukezhen1973} \\
-\end{tabular}
+第~\ref{sec:metrics}~节提出了面向时序图结构化表示的专用评价指标。为验证该指标相比传统文本相似度指标的有效性，本节通过一组对照实验进行对比分析。对照基线选用两种广泛使用的文本相似度指标：Levenshtein比率\inlinecite{levenshtein1966binary}（将标准答案与预测结果的WaveJSON序列化文本进行字符级编辑距离比较）与BLEU\inlinecite{papineni2002bleu}（将WaveJSON序列化文本按词元分割后计算$n$-gram精确率）。
+
+本文选取五个具有代表性的评估场景，分别对应时序图解析中常见的差异类型，涵盖了文本相似度“虚低”（语义一致但文本不同）与“虚高”（语义不同但文本相似）两类典型失效模式。各场景的评分对比结果如表~\ref{tab:metric-comparison}所示。
+
+\begin{table}[htbp]
+  \centering
+  \caption{传统文本相似度指标与本文评价指标的对比}
+  \label{tab:metric-comparison}
+  \begin{tabular}{clcccccc}
+    \toprule
+    \multirow{2}{*}{编号} & \multirow{2}{*}{场景} & \multirow{2}{*}{Levenshtein} & \multirow{2}{*}{BLEU} & \multicolumn{3}{c}{本文指标} \\
+    \cmidrule(lr){5-7}
+     &  &  &  & P & R & F1 \\
+    \midrule
+    1 & 信号顺序置换 & 0.912 & 0.952 & 1.000 & 1.000 & 1.000 \\
+    2 & 保持符号等价 & 0.939 & 0.845 & 1.000 & 1.000 & 1.000 \\
+    3a & 少量数据标签错误（1/4） & 0.991 & 0.928 & 0.875 & 0.875 & 0.875 \\
+    3b & 大量数据标签错误（4/4） & 0.966 & 0.777 & 0.500 & 0.500 & 0.500 \\
+    4 & 信号缺失（4缺1） & 0.897 & 0.801 & 1.000 & 0.750 & 0.857 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{场景1：信号顺序置换。}如图~\ref{fig:metric-s1}所示，预测结果包含与标准答案完全相同的三个信号（时钟、输入、输出），渲染出的时序图在视觉上完全一致，仅信号在WaveJSON数组中的排列顺序不同。由于信号排列顺序仅影响渲染时的纵向位置，不改变任何时序语义，因此应获得满分。Levenshtein比率因数组元素位置变化产生了8.8\%的扣分，BLEU虽受影响较小（0.952）但仍未给出满分，而本文指标通过基于信号名的匹配策略正确给出1.0的满分。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{minipage}{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/metrics/s1_gt.png}
+    \centerline{标准答案}
+  \end{minipage}
+  \hspace{2em}
+  \begin{minipage}{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/metrics/s1_pred.png}
+    \centerline{预测结果}
+  \end{minipage}
+  \caption{场景1：信号顺序置换（语义一致，仅纵向排列不同）}
+  \label{fig:metric-s1}
+\end{figure}
+
+\textbf{场景2：保持符号等价。}如图~\ref{fig:metric-s2}所示，标准答案与预测结果描述的信号行为完全相同，差异仅在于WaveJSON的书写方式：标准答案使用保持符号（\texttt{.}）表示信号在后续时钟周期中延续前一周期的电平（如\texttt{0..1..}表示低电平持续三拍后高电平持续三拍），预测结果则逐周期显式写出电平值（如\texttt{000111}）。两种写法的语义完全等价，但文本差异显著。Levenshtein比率产生了6.1\%的扣分，BLEU的扣分更为严重（0.845），而本文指标在评分前将保持符号展开为实际电平值后进行比较，正确给出满分。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{minipage}{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/metrics/s2_gt.png}
+  \end{minipage}
+  \caption{场景2：保持符号等价（\texttt{0..1..} vs \texttt{000111}，渲染后视觉一致）}
+  \label{fig:metric-s2}
+\end{figure}
+
+\textbf{场景3：数据标签错误。}如图~\ref{fig:metric-s3}所示，此场景展示指标对语义错误严重程度的区分能力。标准答案包含一个4拍计数器信号，数据标签依次为\texttt{0}、\texttt{1}、\texttt{2}、\texttt{3}。场景3a中仅最后一个标签错误（\texttt{3}$\to$\texttt{4}），场景3b中全部四个标签均错误。从渲染的时序图可以直观看出两种错误的严重程度差异显著。然而Levenshtein比率在两种情况下的得分分别为0.991与0.966，差异仅为0.025；BLEU分别为0.928与0.777，差异为0.151，区分能力优于Levenshtein但仍不充分。而本文指标的F1分数分别为0.875与0.500，差异达到0.375，准确反映了错误从局部到全局的严重程度变化。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{minipage}{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/metrics/s3_gt.png}
+    \centerline{标准答案}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/metrics/s3a_pred.png}
+    \centerline{场景3a（1/4错误）}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/metrics/s3b_pred.png}
+    \centerline{场景3b（4/4错误）}
+  \end{minipage}
+  \caption{场景3：数据标签错误（标签\texttt{3}$\to$\texttt{4} vs 全部替换）}
+  \label{fig:metric-s3}
+\end{figure}
+
+\textbf{场景4：信号缺失。}如图~\ref{fig:metric-s4}所示，预测结果遗漏了标准答案中四个信号之一（信号\texttt{b}缺失）。Levenshtein比率给出0.897，BLEU给出0.801，均未能充分反映信息缺失的严重性。本文指标的F1为0.857，其中精确率（Precision）为1.000（预测的信号全部正确），召回率（Recall）为0.750（标准答案中有25\%的信号未被识别）。这一精确率与召回率的分解提供了比单一相似度数值更丰富的诊断信息，有助于分析模型的错误模式——是倾向于“少预测”（召回率低）还是“乱预测”（精确率低）。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{minipage}{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/metrics/s4_gt.png}
+    \centerline{标准答案（4个信号）}
+  \end{minipage}
+  \hspace{2em}
+  \begin{minipage}{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/metrics/s4_pred.png}
+    \centerline{预测结果（缺失信号\texttt{b}）}
+  \end{minipage}
+  \caption{场景4：信号缺失（信号\texttt{b}被遗漏）}
+  \label{fig:metric-s4}
+\end{figure}
+
+综合以上分析，Levenshtein比率与BLEU等传统文本相似度指标存在两类系统性偏差：对语义无关的文本差异（信号顺序、表示风格）产生不必要的惩罚（场景1、2），同时对语义关键的内容错误（数据标签、信号缺失）缺乏足够的敏感度（场景3、4）。本文设计的评价指标通过信号级匹配、保持符号展开与精确率-召回率分解，在两个方向上均给出了更符合语义正确性的评分。
 
 
+\section{第二阶段实验结果}
 
-\section{著者-出版年制}
+本节报告第二阶段（WaveJSON到Verilog代码）有监督微调模型在测试集上的评估结果。评估流程如第~\ref{sec:sim-eval}~小节所述，将模型生成的Verilog模块与对应的测试平台联合仿真，通过波形对拍计算F1分数。测试集共117个样本。
 
-著者-出版年制下的 \cs{cite} 跟 \cs{citet} 一样。
+\subsection{总体结果}
 
-\thusetup{
-  cite-style = author-year,
-}
-\noindent
-\begin{tabular}{@{}l@{$\Rightarrow$}l@{}}
-  \verb|\cite{zhangkun1994}|                & \cite{zhangkun1994}                \\
-  \verb|\citet{zhangkun1994}|               & \citet{zhangkun1994}               \\
-  \verb|\citep{zhangkun1994}|               & \citep{zhangkun1994}               \\
-  \verb|\cite[42]{zhangkun1994}|            & \cite[42]{zhangkun1994}            \\
-  \verb|\citep{zhangkun1994,zhukezhen1973}| & \citep{zhangkun1994,zhukezhen1973} \\
-\end{tabular}
+在117个测试样本中，79个样本（67.5\%）的生成代码通过了编译与仿真，38个样本（32.5\%）因编译错误或仿真失败未能产出有效波形，F1计为零。各样本的F1分数分布如图~\ref{fig:stage2-f1}所示。
 
-\vskip 2ex
-\thusetup{
-  cite-style = super,
-}
-注意，引文参考文献的每条都要在正文中标注
-\cite{zhangkun1994,zhukezhen1973,dupont1974bone,zhengkaiqing1987,%
-  jiangxizhou1980,jianduju1994,merkt1995rotational,mellinger1996laser,%
-  bixon1996dynamics,mahui1995,carlson1981two,taylor1983scanning,%
-  taylor1981study,shimizu1983laser,atkinson1982experimental,%
-  kusch1975perturbations,guangxi1993,huosini1989guwu,wangfuzhi1865songlun,%
-  zhaoyaodong1998xinshidai,biaozhunhua2002tushu,chubanzhuanye2004,%
-  who1970factors,peebles2001probability,baishunong1998zhiwu,%
-  weinstein1974pathogenic,hanjiren1985lun,dizhi1936dizhi,%
-  tushuguan1957tushuguanxue,aaas1883science,fugang2000fengsha,%
-  xiaoyu2001chubanye,oclc2000about,scitor2000project%
-}。
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/stage2_f1_dist.pdf}
+  \caption{第二阶段测试集F1分数分布}
+  \label{fig:stage2-f1}
+\end{figure}
+
+分布呈现明显的两极化特征：38个样本集中在F1=0（仿真失败），41个样本达到F1=1.0（完全正确），中间区域的样本相对较少。全部117个样本的平均F1为0.614。
+
+\subsection{仿真成功样本分析}
+
+仅考虑通过仿真的79个样本，平均F1达到0.909，中位数为1.000。其中41个样本（51.9\%）的F1为1.0，表明模型生成的代码在测试平台的全部激励下与标准答案的行为完全一致。F1$\geq$0.8的样本共66个（83.5\%），说明绝大多数成功仿真的样本在功能上高度正确，仅存在局部信号的细微偏差。F1低于0.5的样本仅有2个（2.5\%），表明模型一旦能生成可编译的代码，其功能正确性普遍较高。
+
+\subsection{仿真失败分析}
+
+对38个仿真失败样本的生成代码进行人工分析，按模型能力不足的表现形式可归纳为以下三类。
+
+\textbf{重复退化。}5个样本的生成代码因模型陷入重复生成模式而未能产出有效的模块定义，均缺少完整的\texttt{endmodule}结构。对原始推理输出的逐行分析揭示了四种退化模式：（1）\textit{递增编号的重复声明}——模型声明了状态机框架后，进入形如\texttt{reg ablk\_*\_temp\_N}的临时寄存器声明循环，编号N从1递增至104，1{,}353行输出中有1{,}247行为重复的寄存器声明；（2）\textit{单一词元的无限重复}——模型仅输出模块名的前几个字符后便陷入单个词元的无限复制，32{,}771个字符中仅前29个字符为有意义的代码；（3）\textit{暴力枚举的组合爆炸}——一个14位输入的译码器模块，模型试图逐一列举全部$2^{14}=16{,}384$种输入组合的\texttt{case}分支，在生成583条分支后被截断；（4）\textit{状态机状态爆炸}——一个I\textsuperscript{2}C主控模块被生成为包含244个几乎相同状态的巨型状态机，每个状态仅执行简单的计数等待后跳转至下一状态，完全偏离了协议的实际逻辑。这类错误的共性在于模型未能形成对模块整体结构的规划，在生成过程中陷入局部模式的机械重复，直至达到词元上限。
+
+\textbf{端口接口错误。}部分样本的生成代码虽然结构完整，但端口声明与测试平台的期望不匹配，导致联合编译失败。典型的错误模式包括：遗漏测试平台所需的模块参数（如数据位宽参数\texttt{DATA\_WIDTH}、地址位宽参数\texttt{ADDR\_WIDTH}等）、输出端口位宽与测试平台声明不一致（如测试平台期望16位输出但模型生成了24位端口）。这类错误表明模型在从WaveJSON推断模块接口规格时存在偏差，尤其在参数化模块的参数列表还原方面能力不足。
+
+\textbf{逻辑实现错误。}部分样本的生成代码能够通过编译甚至完成仿真，但内部逻辑实现存在缺陷，导致仿真波形与标准答案产生偏差。这是有监督微调模型最具代表性的错误类型：模型从训练数据中学会了Verilog代码的结构模式——端口声明、\texttt{always}块框架、\texttt{case}语句骨架——但仅凭词元级交叉熵损失的监督，难以精确还原决定功能行为的关键细节。
+
+对38个通过仿真但F1$<$1.0的样本进行信号级分析，发现10个样本存在输出信号退化为常量的现象——标准答案中随输入变化的输出信号在生成代码的仿真中始终保持固定值。以下三个典型案例展示了这类错误从组合逻辑到时序逻辑、从控制信号到数据通路的多种表现形式。
+
+\textit{组合逻辑译码失效。}一个指令译码器模块（F1=0.407）的13个端口中，输入信号\texttt{INST}被正确传递，但12个译码输出中大部分始终保持零值或未定义态。标准答案中，寄存器地址字段\texttt{DR}、\texttt{SA}、\texttt{SB}应从指令中提取不同位段，控制信号\texttt{MB}、\texttt{LD}、\texttt{MW}应根据指令类型产生使能脉冲。模型生成的译码器包含了正确的\texttt{case}语句框架，但译码条件与输出赋值的对应关系存在大量错误，导致绝大多数指令未能命中有效分支。
+
+\textit{时序逻辑状态机停滞。}一个行扫描控制器（F1=0.584）的15个信号中，4个输入信号被正确复现，但11个输出中有5个始终为高阻态，其余在复位释放后恒为零。标准答案显示该状态机应循环执行行加载序列——\texttt{prev\_row\_load}、\texttt{curr\_row\_load}、\texttt{next\_row\_load}依次以一个周期的偏移产生使能脉冲。模型生成的代码包含了状态寄存器与转移逻辑的框架，但转移条件不完整，状态机无法离开初始状态。
+
+\textit{数值映射偏差。}一个相位译码器（F1=0.254，通过仿真的样本中最低分）的输入信号被正确复现，但4个相位输出的数据标签值与标准答案显著不同。例如，\texttt{dqs\_phase}的标准标签序列为\texttt{16}、\texttt{36}、\texttt{56}、\texttt{77}、\texttt{7}、\texttt{27}、\texttt{48}、\texttt{68}，反映相位值随输入地址的查表映射关系，而模型生成的序列为\texttt{66}、\texttt{25}的简单交替。模型能够还原信号的跳变时序，但无法准确推断具体的数值映射。
+
+上述三类错误呈现出一致的模式：模型在代码框架层面基本正确——端口结构、控制流骨架、信号类型均能从WaveJSON中正确识别，但在决定功能行为的关键细节——译码真值表的具体条目、状态转移的精确条件、数值映射的查找表——上存在系统性偏差。需要指出的是，评估采用相同测试平台的仿真对拍，模型只需生成在该激励下行为一致的任意实现即可获得满分，并不要求与标准答案的代码相同。模型未能找到任何一个功能等价的实现，反映的是模型从行为观测推断逻辑规则的能力不足。
+
+这一错误模式具有重要的方法论启示。有监督微调的词元级损失函数对功能正确性的监督是间接的——它优化的是生成序列与参考代码之间的词元匹配度，而非生成代码的功能行为。上述案例表明，词元级匹配能够引导模型学会代码的结构模式，但不足以保证行为层面的正确性。同时，这类错误产生的部分正确输出——F1分布在0.25至0.58之间，而非全零——恰好为基于仿真奖励的强化学习提供了有意义的优化梯度。第~\ref{chap:method}~章提出的GRPO方法正是针对这一瓶颈：以仿真对拍的F1分数作为连续值奖励信号，直接在功能正确性层面优化模型，使其超越有监督微调所能达到的性能上限。
