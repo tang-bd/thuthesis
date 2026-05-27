@@ -104,7 +104,7 @@ LLM的输出通过结构化标签（\texttt{<testbench\_verilog>}与\texttt{<ski
 
 相似性检测包含以下两个维度：
 \begin{enumerate}
-  \item \textbf{WaveJSON指纹匹配。}对每个样本计算其WaveJSON的规范化指纹（包括信号名、波形字符串等），指纹相同的样本被归入同一等价类。指纹的粒度可配置（从仅比较信号名到比较完整波形含数据标签），以在去重力度与保留率之间取得平衡。
+  \item \textbf{WaveJSON指纹匹配。}对每个样本计算其WaveJSON的规范化指纹：首先对所有信号名进行规范化（统一小写、去除空格、规范化总线索引格式），然后将每个信号的规范化名称与波形字符串组成二元组，按信号名排序后序列化为确定性字符串作为指纹。指纹相同的样本被归入同一等价类。
   \item \textbf{信号名模糊匹配。}在波形拓扑多重集（将波形字符串抽象为高/低/数据/保持等拓扑符号的多重集合）相同的样本之间，计算规范化信号名序列的相似度。相似度超过阈值（默认0.88）的样本对被合并。这一机制能够检测出仅因端口重命名而产生的变体样本。
 \end{enumerate}
 
@@ -170,7 +170,7 @@ LLM的输出通过结构化标签（\texttt{<testbench\_verilog>}与\texttt{<ski
 需要指出的是，基于有限长度激励序列的仿真对拍是一种充分但非必要的功能验证——通过对拍的模块在所测试的输入序列上行为正确，但不能保证在所有可能输入下均正确。然而，本文数据集中的测试平台经过LLM针对性设计，激励序列覆盖了模块的主要工作模式与边界条件，在实践中提供了可靠的功能正确性评估。
 
 
-\section{模型训练}
+\section{有监督微调}
 
 \subsection{第一阶段：时序图图像到WaveJSON}
 
@@ -181,7 +181,7 @@ LLM的输出通过结构化标签（\texttt{<testbench\_verilog>}与\texttt{<ski
   \item LoRA秩设为32，应用于模型的全部线性层。
   \item 冻结视觉编码器（Vision Tower）与多模态投影层的参数，仅训练语言模型部分的LoRA适配器。这一策略基于以下考虑：预训练的视觉编码器已具备充分的图像特征提取能力，时序图理解的瓶颈在于语言模型对视觉特征的解读方式，而非视觉特征本身的质量。
   \item 图像最大像素数限制为$1{,}048{,}576$（约$1024 \times 1024$），序列截断长度为8196个词元（Token）。
-  \item 批大小为1，梯度累积步数为16，学习率为$1 \times 10^{-4}$，使用恒定学习率调度，训练20轮（Epoch）。
+  \item 总批大小为64，学习率为$1 \times 10^{-4}$，使用恒定学习率调度，训练15轮（Epoch）。
 \end{itemize}
 
 
@@ -192,9 +192,9 @@ LLM的输出通过结构化标签（\texttt{<testbench\_verilog>}与\texttt{<ski
 训练的关键超参数设置如下：
 \begin{itemize}
   \item LoRA秩设为64（高于第一阶段），因为代码生成任务的输出空间更大，需要更强的适配能力。应用于模型的全部线性层。
-  \item 采用FSDP（Fully Sharded Data Parallel）\inlinecite{zhao2023fsdp}进行分布式训练，使用\texttt{full\_shard}策略。
+  \item 采用FSDP（Fully Sharded Data Parallel）\inlinecite{zhao2023fsdp}进行分布式训练，使用\texttt{full\_shard}策略，将模型参数、梯度与优化器状态分片存储于多块GPU上以降低单卡显存占用。
   \item 序列截断长度为8192个词元（Token）。
-  \item 批大小为1，梯度累积步数为16，学习率为$2 \times 10^{-5}$，使用恒定学习率调度，训练30轮（Epoch）。
+  \item 总批大小为64，学习率为$2 \times 10^{-5}$，使用恒定学习率调度，训练15轮（Epoch）。
 \end{itemize}
 
 两个阶段的训练均使用LlamaFactory框架\inlinecite{zheng2024llamafactory}完成，采用BF16混合精度训练以降低显存占用。
@@ -221,7 +221,7 @@ RLVR的关键是设计可自动验证的奖励信号。对于第二阶段的Wave
 
 本文采用群体相对策略优化（GRPO）\inlinecite{shao2024deepseekmath}算法进行强化学习训练，基于verl框架\inlinecite{sheng2024hybridflow}实现。对每个训练样本，模型采样一组候选Verilog代码，每份代码独立进行功能仿真与评分，所得F1分数作为该候选的奖励值。GRPO通过组内奖励的相对排名估计优势函数，消除了训练价值网络的额外开销。
 
-训练数据采用与SFT相同的防泄漏划分策略，将WaveJSON与对应的测试平台路径、参考Verilog代码等元信息打包为Parquet格式。强化学习阶段在SFT微调后的检查点上继续训练，关键超参数设置如下：
+训练数据与SFT阶段相同，将WaveJSON与对应的测试平台路径、参考Verilog代码等元信息打包为Parquet格式。强化学习阶段在SFT微调后的检查点上继续训练，关键超参数设置如下：
 \begin{itemize}
   \item 沿用SFT阶段的LoRA配置：秩为64，缩放因子$\alpha$为128，应用于全部线性层。
   \item 对每个训练样本采样4个候选输出用于组内比较。
