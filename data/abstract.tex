@@ -9,7 +9,7 @@
   在数据层面，本文优化了数据合成链路，利用大语言模型替代随机激励生成高质量测试平台，并构建筛选机制剔除低质量样本，显著提升了训练数据的合理性与实用性。
   在模型层面，本文采用有监督微调策略分别训练两阶段模型，实现了从“图像到结构化表示”及“结构化表示到硬件描述语言代码”的跨模态转换。
   在评价层面，本文提出了一种面向时序图结构化表示的专用评价指标，弥补了传统文本指标无法衡量结构化表示的语义正确性的不足。
-  在优化层面，本文将该指标作为奖励函数引入强化学习阶段，通过群体相对策略优化算法大幅提升了生成代码在功能仿真中的正确率。
+  在优化层面，本文将该指标作为奖励函数引入强化学习阶段，通过群体相对策略优化算法为生成代码的功能正确性提供了进一步优化的途径。
   实验结果表明，本文方法在时序图解析任务上显著优于现有基线，为智能电子设计自动化工具的发展开辟了新的路径。
 
   % 关键词用“英文逗号”分隔，输出时会自动处理为正确的分隔符
@@ -25,7 +25,7 @@
   To address data scarcity, we optimize the data synthesis pipeline by employing LLMs to generate semantically meaningful testbenches in place of random stimuli and by introducing a filtering mechanism to remove low-quality samples.
   We apply Supervised Fine-Tuning (SFT) to train the two-stage models separately, enabling cross-modal conversion from images to structured representations and from structured representations to HDL code.
   We further propose a domain-specific evaluation metric tailored for structured timing representations, overcoming the inability of conventional text-similarity metrics to capture the semantic correctness of structured representations.
-  Finally, we incorporate this metric as a reward function in a Reinforcement Learning stage using the Group Relative Policy Optimization (GRPO) algorithm, substantially improving the functional simulation pass rate of the generated code.
+  Finally, we incorporate this metric as a reward function in a Reinforcement Learning stage using the Group Relative Policy Optimization (GRPO) algorithm, providing a pathway for further improving the functional correctness of the generated code.
   Experimental results demonstrate that the proposed method significantly outperforms existing baselines on the timing diagram parsing task, opening a new pathway for the development of intelligent Electronic Design Automation tools.
 
   % Use comma as separator when inputting

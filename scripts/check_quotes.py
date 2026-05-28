@@ -1,4 +1,8 @@
-"""Check all .tex files under data/ for ASCII double quotes (U+0022).
+"""Check all .tex files under data/ for quote issues.
+
+Detects two kinds of problems:
+  1. ASCII double quotes (U+0022) — should be Unicode "" (U+201C/U+201D)
+  2. Mismatched curly quotes — e.g. "" instead of "" (wrong left/right pairing)
 
 Skips verbatim/lstlisting and \\texttt{} regions where ASCII quotes are expected.
 
@@ -19,6 +23,9 @@ SKIP_ENVS = re.compile(
 )
 SKIP_TEXTTT = re.compile(r'\\texttt\{[^}]*\}')
 
+LEFT = '“'
+RIGHT = '”'
+
 
 def mask_code_regions(content):
     """Replace code regions with same-length placeholder so positions stay valid."""
@@ -28,10 +35,7 @@ def mask_code_regions(content):
     return masked
 
 
-def find_ascii_quotes(path):
-    with open(path, encoding='utf-8') as f:
-        content = f.read()
-    masked = mask_code_regions(content)
+def find_ascii_quotes(content, masked):
     hits = []
     for i, ch in enumerate(masked):
         if ch == '\x22':
@@ -41,7 +45,30 @@ def find_ascii_quotes(path):
             end = min(len(content), i + 8)
             ctx = content[start:end].replace('\n', ' ')
             hits.append((line_num, col, ctx))
-    return content, masked, hits
+    return hits
+
+
+def find_mismatched_curly_quotes(content, masked):
+    hits = []
+    expect_left = True
+    for i, ch in enumerate(masked):
+        if ch not in (LEFT, RIGHT):
+            continue
+        line_num = content[:i].count('\n') + 1
+        start = max(0, i - 8)
+        end = min(len(content), i + 9)
+        ctx = content[start:end].replace('\n', ' ')
+
+        if expect_left and ch == RIGHT:
+            hits.append((line_num, i, f'expected left “ but got right ”: ...{ctx}...'))
+        elif not expect_left and ch == LEFT:
+            hits.append((line_num, i, f'expected right ” but got left “: ...{ctx}...'))
+
+        expect_left = (ch == RIGHT)
+
+    if not expect_left:
+        hits.append((0, 0, 'unmatched left “ without closing right ”'))
+    return hits
 
 
 def fix_ascii_quotes(content, masked):
@@ -51,10 +78,10 @@ def fix_ascii_quotes(content, masked):
     for i, ch in enumerate(masked):
         if ch == '\x22':
             if not in_quote:
-                result[i] = '“'
+                result[i] = LEFT
                 in_quote = True
             else:
-                result[i] = '”'
+                result[i] = RIGHT
                 in_quote = False
     return ''.join(result)
 
@@ -64,20 +91,31 @@ for fname in sorted(os.listdir(TEX_DIR)):
     if not fname.endswith('.tex'):
         continue
     path = os.path.join(TEX_DIR, fname)
-    content, masked, hits = find_ascii_quotes(path)
-    if hits:
+    with open(path, encoding='utf-8') as f:
+        content = f.read()
+    masked = mask_code_regions(content)
+
+    ascii_hits = find_ascii_quotes(content, masked)
+    curly_hits = find_mismatched_curly_quotes(content, masked)
+
+    if ascii_hits:
         found_any = True
-        for line_num, col, ctx in hits:
-            print(f'  {fname}:{line_num}:{col}  ...{ctx}...')
+        for line_num, col, ctx in ascii_hits:
+            print(f'  {fname}:{line_num}:{col}  ASCII quote  ...{ctx}...')
         if FIX_MODE:
-            fixed = fix_ascii_quotes(content, masked)
+            content = fix_ascii_quotes(content, masked)
             with open(path, 'w', encoding='utf-8') as f:
-                f.write(fixed)
-            print(f'  -> FIXED {fname} ({len(hits)} quotes)')
+                f.write(content)
+            print(f'  -> FIXED {fname} ({len(ascii_hits)} ASCII quotes)')
+
+    if curly_hits:
+        found_any = True
+        for line_num, pos, msg in curly_hits:
+            print(f'  {fname}:{line_num}  mismatched curly quote: {msg}')
 
 if not found_any:
-    print('OK: no ASCII double quotes found.')
+    print('OK: no quote issues found.')
 else:
     if not FIX_MODE:
-        print(f'\nRun with --fix to auto-replace.')
+        print(f'\nRun with --fix to auto-replace ASCII quotes.')
     sys.exit(1)
