@@ -3,13 +3,12 @@
 % 中英文摘要和关键字
 
 \begin{abstract}
-  数字电路时序图是芯片设计与验证中编码模块行为规约的核心视觉载体，蕴含了实现对应硬件描述语言代码所需的完整逻辑信息。然而，从时序图到硬件描述语言代码的转化至今仍高度依赖工程师的手工操作，效率低下且极易引入人为错误。近年来，多模态大语言模型在跨模态理解任务中展现出卓越性能，但将其应用于时序图等高度专业化的技术图表仍面临训练数据匮乏、领域视觉特征与通用图像差异显著以及生成代码的功能正确性难以保证等挑战。
+  数字电路时序图是芯片设计与验证中编码模块行为规约的核心视觉载体，蕴含了实现对应硬件描述语言代码所需的关键逻辑信息。然而，从时序图到硬件描述语言代码的转化至今仍高度依赖工程师的手工操作，效率低下且极易引入人为错误。近年来，多模态大语言模型在跨模态理解任务中展现出卓越性能，但将其应用于时序图等高度专业化的技术图表仍面临训练数据匮乏、缺乏专用评价方法、领域视觉特征与通用图像差异显著以及生成代码的功能正确性难以保证等挑战。
 
   本文提出了一种基于多模态大语言模型的数字电路时序图自动化解析框架，将该任务建模为两阶段流水线：首先由多模态大语言模型将时序图图像转换为结构化表示，再由文本大语言模型基于结构化表示推理生成硬件描述语言代码。
-  在数据层面，本文优化了数据合成链路，利用大语言模型替代随机激励生成高质量测试平台，并构建筛选机制剔除低质量样本，显著提升了训练数据的合理性与实用性。
-  在模型层面，本文采用有监督微调策略分别训练两阶段模型，实现了从“图像到结构化表示”及“结构化表示到硬件描述语言代码”的跨模态转换。
-  在评价层面，本文提出了一种面向时序图结构化表示的专用评价指标，弥补了传统文本指标无法衡量结构化表示的语义正确性的不足。
-  在优化层面，本文将该指标作为奖励函数引入强化学习阶段，通过群体相对策略优化算法为生成代码的功能正确性提供了进一步优化的途径。
+  在数据层面，本文优化了数据合成链路，利用大语言模型替代随机激励生成高质量测试平台，并构建多层级预选机制排除不合格的候选模块，显著提升了训练数据的合理性与实用性。
+  在评价层面，本文提出了面向时序图结构化表示的专用评价指标，解决了传统文本相似度指标无法衡量结构语义正确性的问题。
+  在训练层面，本文首先通过有监督微调分别训练两阶段模型，建立从“图像到结构化表示”及“结构化表示到硬件描述语言代码”的基线能力；随后以上述评价指标为奖励函数，采用群体相对策略优化算法进行强化学习，进一步提升生成代码的功能正确性。
   实验结果表明，本文方法在时序图解析任务上显著优于现有基线，为智能电子设计自动化工具的发展开辟了新的路径。
 
   % 关键词用“英文逗号”分隔，输出时会自动处理为正确的分隔符
@@ -19,13 +18,12 @@
 \end{abstract}
 
 \begin{abstract*}
-  Digital timing diagrams encode the behavioral specifications of hardware modules and are central to chip design and verification. Converting them into Hardware Description Language (HDL) code, however, still relies heavily on manual effort---a process that is both time-consuming and error-prone. While Multimodal Large Language Models (MLLMs) have shown remarkable cross-modal understanding capabilities, applying them to highly specialized technical diagrams such as timing diagrams remains challenging due to the scarcity of training data, the significant gap between domain-specific visual features and natural images, and the difficulty of ensuring functional correctness of generated code.
+  Digital timing diagrams encode the behavioral specifications of hardware modules and are central to chip design and verification. Converting them into Hardware Description Language (HDL) code, however, still relies heavily on manual effort---a process that is both time-consuming and error-prone. While Multimodal Large Language Models (MLLMs) have shown remarkable cross-modal understanding capabilities, applying them to highly specialized technical diagrams such as timing diagrams remains challenging due to the scarcity of training data, the lack of domain-specific evaluation methods, the significant gap between domain-specific visual features and natural images, and the difficulty of ensuring functional correctness of generated code.
 
   This paper presents an MLLM-based automated parsing framework that formulates timing diagram analysis as a two-stage pipeline: an MLLM first converts the timing diagram image into a structured intermediate representation, and a text-based LLM then reasons over this representation to generate HDL code.
-  To address data scarcity, we optimize the data synthesis pipeline by employing LLMs to generate semantically meaningful testbenches in place of random stimuli and by introducing a filtering mechanism to remove low-quality samples.
-  We apply Supervised Fine-Tuning (SFT) to train the two-stage models separately, enabling cross-modal conversion from images to structured representations and from structured representations to HDL code.
-  We further propose a domain-specific evaluation metric tailored for structured timing representations, overcoming the inability of conventional text-similarity metrics to capture the semantic correctness of structured representations.
-  Finally, we incorporate this metric as a reward function in a Reinforcement Learning stage using the Group Relative Policy Optimization (GRPO) algorithm, providing a pathway for further improving the functional correctness of the generated code.
+  To address data scarcity, we optimize the data synthesis pipeline by employing LLMs to generate semantically meaningful testbenches in place of random stimuli and by introducing a multi-level pre-selection mechanism to exclude unqualified candidate modules.
+  For evaluation, we propose a domain-specific metric tailored for structured timing representations, addressing the inability of conventional text-similarity metrics to capture structural semantic correctness.
+  For training, we first apply Supervised Fine-Tuning (SFT) to the two-stage models separately, establishing baseline capabilities for cross-modal conversion from images to structured representations and from structured representations to HDL code; we then employ the proposed metric as a reward function in a Reinforcement Learning stage with the Group Relative Policy Optimization (GRPO) algorithm, further improving the functional correctness of the generated code.
   Experimental results demonstrate that the proposed method significantly outperforms existing baselines on the timing diagram parsing task, opening a new pathway for the development of intelligent Electronic Design Automation tools.
 
   % Use comma as separator when inputting

@@ -189,7 +189,7 @@
     \includegraphics[width=\textwidth]{figures/metrics/s1_pred.png}
     \centerline{预测结果}
   \end{minipage}
-  \caption{场景1：信号顺序置换（语义一致，仅纵向排列不同）}
+  \caption[评价指标验证场景1：信号顺序置换]{场景1：信号顺序置换（语义一致，仅纵向排列不同）}
   \label{fig:metric-s1}
 \end{figure}
 
@@ -201,7 +201,7 @@
     \centering
     \includegraphics[width=\textwidth]{figures/metrics/s2_gt.png}
   \end{minipage}
-  \caption{场景2：保持符号等价（\texttt{0..1..} vs \texttt{000111}，渲染后视觉一致）}
+  \caption[评价指标验证场景2：保持符号等价]{场景2：保持符号等价（\texttt{0..1..} vs \texttt{000111}，渲染后视觉一致）}
   \label{fig:metric-s2}
 \end{figure}
 
@@ -226,7 +226,7 @@
     \includegraphics[width=\textwidth]{figures/metrics/s3b_pred.png}
     \centerline{场景3b（4/4错误）}
   \end{minipage}
-  \caption{场景3：数据标签错误（标签\texttt{3}$\to$\texttt{4} vs 全部替换）}
+  \caption[评价指标验证场景3：数据标签错误]{场景3：数据标签错误（标签\texttt{3}$\to$\texttt{4} vs 全部替换）}
   \label{fig:metric-s3}
 \end{figure}
 
@@ -245,7 +245,7 @@
     \includegraphics[width=\textwidth]{figures/metrics/s4_pred.png}
     \centerline{预测结果（缺失信号\texttt{b}）}
   \end{minipage}
-  \caption{场景4：信号缺失（信号\texttt{b}被遗漏）}
+  \caption[评价指标验证场景4：信号缺失]{场景4：信号缺失（信号\texttt{b}被遗漏）}
   \label{fig:metric-s4}
 \end{figure}
 
@@ -300,7 +300,7 @@
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/error_examples/good_stage1.png}
-  \caption{第一阶段完全正确的复杂样本：FIFO读控制器模块（14个信号，F1=1.0）}
+  \caption[第一阶段完全正确的复杂样本]{第一阶段完全正确的复杂样本：FIFO读控制器模块（14个信号，F1=1.0）}
   \label{fig:good-stage1}
 \end{figure}
 
@@ -315,7 +315,7 @@
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/error_examples/wavelen_gt.png}
-  \caption{波形长度偏差示例：纯组合逻辑模块的输入时序图（F1=0.650）}
+  \caption[第一阶段波形长度偏差错误示例]{波形长度偏差示例：纯组合逻辑模块的输入时序图（F1=0.650）}
   \label{fig:error-wavelen}
 \end{figure}
 
@@ -338,7 +338,7 @@
     \includegraphics[width=\textwidth]{figures/error_examples/datalabel_pred.png}
     \centerline{（b）模型预测（黄色高亮标注错误的数据标签）}
   \end{minipage}
-  \caption{数据标签识别错误示例：指令译码器模块前5个信号（F1=0.887）}
+  \caption[第一阶段数据标签识别错误示例]{数据标签识别错误示例：指令译码器模块前5个信号（F1=0.887）}
   \label{fig:error-datalabel}
 \end{figure}
 
@@ -396,7 +396,7 @@
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figures/error_examples/good_stage2.png}
-  \caption{第二阶段完全正确的复杂样本：PCIe QPLL复位控制器（15个信号，224行Verilog，F1=1.0）}
+  \caption[第二阶段完全正确的复杂样本]{第二阶段完全正确的复杂样本：PCIe QPLL复位控制器（15个信号，224行Verilog，F1=1.0）}
   \label{fig:good-stage2}
 \end{figure}
 
