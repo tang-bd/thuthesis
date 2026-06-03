@@ -9,7 +9,7 @@
   在数据层面，本文优化了数据合成链路，利用大语言模型替代随机激励生成高质量测试平台，并构建多层级预选机制排除不合格的候选模块，显著提升了训练数据的合理性与实用性。
   在评价层面，本文提出了面向时序图结构化表示的专用评价指标，解决了传统文本相似度指标无法衡量结构语义正确性的问题。
   在训练层面，本文首先通过有监督微调分别训练两阶段模型，建立从“图像到结构化表示”及“结构化表示到硬件描述语言代码”的基线能力；随后以上述评价指标为奖励函数，采用群体相对策略优化算法进行强化学习，进一步提升生成代码的功能正确性。
-  实验结果表明，本文方法在时序图解析任务上显著优于现有基线，为智能电子设计自动化工具的发展开辟了新的路径。
+  实验结果表明，本文方法在时序图解析任务上显著超越开源基线模型并逼近前沿闭源模型的性能水平，为智能电子设计自动化工具的发展开辟了新的路径。
 
   % 关键词用“英文逗号”分隔，输出时会自动处理为正确的分隔符
   \thusetup{
@@ -24,7 +24,7 @@
   To address data scarcity, we optimize the data synthesis pipeline by employing LLMs to generate semantically meaningful testbenches in place of random stimuli and by introducing a multi-level pre-selection mechanism to exclude unqualified candidate modules.
   For evaluation, we propose a domain-specific metric tailored for structured timing representations, addressing the inability of conventional text-similarity metrics to capture structural semantic correctness.
   For training, we first apply Supervised Fine-Tuning (SFT) to the two-stage models separately, establishing baseline capabilities for cross-modal conversion from images to structured representations and from structured representations to HDL code; we then employ the proposed metric as a reward function in a Reinforcement Learning stage with the Group Relative Policy Optimization (GRPO) algorithm, further improving the functional correctness of the generated code.
-  Experimental results demonstrate that the proposed method significantly outperforms existing baselines on the timing diagram parsing task, opening a new pathway for the development of intelligent Electronic Design Automation tools.
+  Experimental results demonstrate that the proposed method significantly outperforms open-source baseline models and approaches the performance level of state-of-the-art proprietary models on the timing diagram parsing task, opening a new pathway for the development of intelligent Electronic Design Automation tools.
 
   % Use comma as separator when inputting
   \thusetup{

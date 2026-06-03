@@ -14,16 +14,16 @@
 \end{equation}
 其中$d_k$为键向量的维度。多头注意力（Multi-Head Attention）将$Q$、$K$、$V$分别投影至$h$个不同的子空间后并行计算注意力，再将结果拼接投影回原始维度，从而捕获不同位置与不同表示子空间中的信息。Transformer采用编码器-解码器结构，每一层由多头注意力与前馈网络交替组成，并辅以残差连接与层归一化，在机器翻译等序列到序列任务上取得了突破性效果。
 
-在Transformer的基础上，大语言模型（Large Language Model, LLM）采用仅解码器（Decoder-only）架构，通过在大规模文本语料上进行自回归预训练来学习语言的统计规律与语义知识。GPT-2\inlinecite{radford2019language}首次展示了语言模型作为无监督多任务学习器的潜力；GPT-3\inlinecite{brown2020language}通过将参数规模扩展至1750亿证明了少样本上下文学习（In-Context Learning）能力的涌现；GPT-4\inlinecite{achiam2023gpt4}进一步提升了多步推理与代码生成能力；GPT-5\inlinecite{openai2025gpt5}采用多模型协同架构实现了推理能力的跨越式提升，其后续迭代GPT-5.5\inlinecite{openai2026gpt55}在代码生成与智能体任务上持续强化。在开源领域，Meta的LLaMA系列经历了快速迭代：LLaMA 2\inlinecite{touvron2023llama}以70亿至700亿参数的稠密架构率先缩小了开源与闭源模型的差距；LLaMA 3\inlinecite{grattafiori2024llama3}将稠密模型规模扩展至4050亿参数，在多语言与代码推理任务上进一步逼近前沿闭源模型的表现；LLaMA 4\inlinecite{meta2025llama4}转向MoE架构并原生支持多模态输入，以170亿激活参数实现了与更大规模稠密模型相当的性能。阿里巴巴的Qwen3\inlinecite{yang2025qwen3}提供了从6亿到2350亿参数的完整模型谱系，同时支持稠密与MoE两种架构，在代码生成与结构化输出任务上表现突出，且同步提供了对应的多模态版本Qwen3-VL\inlinecite{bai2025qwen3vl}，使得文本与视觉任务可在统一的模型家族内完成，这一特性使其成为本文两阶段框架的理想基座模型。深度求索的DeepSeek-V4\inlinecite{deepseek2025v4}以1.6万亿总参数、490亿激活参数的MoE架构在代码与数学推理任务上展现了优异性能；智谱的GLM-4.5\inlinecite{glm2025glm45}以3550亿总参数的MoE架构在智能体、推理与代码任务上取得了领先表现；OpenAI开源的GPT-OSS-120B\inlinecite{openai2025gptoss}则以1170亿总参数的MoE架构提供了高质量的代码生成能力。这些模型在自然语言理解、代码生成、逻辑推理等任务上已展现出强大的通用能力，为后续面向特定领域的微调应用奠定了基础。
+在Transformer的基础上，大语言模型（Large Language Model, LLM）采用仅解码器（Decoder-only）架构，通过在大规模文本语料上进行自回归预训练来学习语言的统计规律与语义知识。GPT-2\inlinecite{radford2019language}首次展示了语言模型作为无监督多任务学习器的潜力；GPT-3\inlinecite{brown2020language}通过将参数规模扩展至1750亿证明了少样本上下文学习（In-Context Learning）能力的涌现；GPT-4\inlinecite{achiam2023gpt4}进一步提升了多步推理与代码生成能力；GPT-5\inlinecite{openai2025gpt5}采用多模型协同架构实现了推理能力的跨越式提升，其后续迭代GPT-5.5\inlinecite{openai2026gpt55}在代码生成与智能体任务上持续强化。在开源领域，Meta的LLaMA系列经历了快速迭代：LLaMA 2\inlinecite{touvron2023llama}以70亿至700亿参数的稠密架构率先缩小了开源与闭源模型的差距；LLaMA 3\inlinecite{grattafiori2024llama3}将稠密模型规模扩展至4050亿参数，在多语言与代码推理任务上进一步逼近前沿闭源模型的表现；LLaMA 4\inlinecite{meta2025llama4}转向混合专家（Mixture of Experts, MoE）架构并原生支持多模态输入，以170亿激活参数实现了与更大规模稠密模型相当的性能。阿里巴巴的Qwen3\inlinecite{yang2025qwen3}提供了从6亿到2350亿参数的完整模型谱系，同时支持稠密与MoE两种架构，在代码生成与结构化输出任务上表现突出，且同步提供了对应的多模态版本Qwen3-VL\inlinecite{bai2025qwen3vl}，使得文本与视觉任务可在统一的模型家族内完成，这一特性使其成为本文两阶段框架的理想基座模型。深度求索的DeepSeek-V4\inlinecite{deepseek2025v4}以1.6万亿总参数、490亿激活参数的MoE架构在代码与数学推理任务上展现了优异性能；智谱的GLM-4.5\inlinecite{glm2025glm45}以3550亿总参数的MoE架构在智能体、推理与代码任务上取得了领先表现；OpenAI开源的GPT-OSS-120B\inlinecite{openai2025gptoss}则以1170亿总参数的MoE架构提供了高质量的代码生成能力。这些模型在自然语言理解、代码生成、逻辑推理等任务上已展现出强大的通用能力，为后续面向特定领域的微调应用奠定了基础。
 
 
 \subsection{多模态大语言模型}
 
-本文的核心任务——从时序图图像中提取结构化信息——本质上是一个视觉理解问题，需要模型同时具备图像感知与语言生成能力。多模态大语言模型（Multimodal Large Language Model, MLLM）正是为此类跨模态任务而设计的，它将视觉感知能力与语言理解能力相融合。当前主流MLLM的架构通常由三个模块组成：视觉编码器（Vision Encoder）、投影层（Projector）和语言模型（Language Model）。
+本文的核心任务，即从时序图图像中提取结构化信息，本质上是一个视觉理解问题，需要模型同时具备图像感知与语言生成能力。多模态大语言模型（Multimodal Large Language Model, MLLM）正是为此类跨模态任务而设计的，它将视觉感知能力与语言理解能力相融合。当前主流MLLM的架构通常由三个模块组成：视觉编码器（Vision Encoder）、投影层（Projector）和语言模型（Language Model）。
 
 视觉编码器负责将输入图像转换为一系列视觉特征向量。视觉Transformer（Vision Transformer, ViT）\inlinecite{dosovitskiy2021image}是当前最主流的视觉编码器架构，它将图像划分为固定大小的图块（Patch），将每个图块线性映射为嵌入向量后送入Transformer编码器进行处理。CLIP\inlinecite{radford2021clip}通过在约4亿对图像-文本数据上进行对比学习预训练，使视觉编码器学会了与语言语义对齐的图像表示，其预训练的ViT编码器被LLaVA、InternVL等多个开源MLLM直接采用作为视觉感知的基础组件。
 
-投影层的作用是将视觉编码器输出的特征映射到语言模型的词嵌入空间中，弥合视觉与语言两种模态之间的表示差异。不同模型采用了不同复杂度的投影策略：LLaVA\inlinecite{liu2023llava}使用简单的线性层或两层MLP作为投影器，以极低的参数开销实现了有效的模态对齐；InternVL\inlinecite{chen2024internvl}则采用了动态高分辨率策略与更深的MLP投影，以适应不同分辨率的视觉输入。
+投影层的作用是将视觉编码器输出的特征映射到语言模型的词嵌入空间中，弥合视觉与语言两种模态之间的表示差异。不同模型采用了不同复杂度的投影策略：LLaVA\inlinecite{liu2023llava}使用简单的线性层或两层多层感知机（Multi-Layer Perceptron, MLP）作为投影器，以极低的参数开销实现了有效的模态对齐；InternVL\inlinecite{chen2024internvl}则采用了动态高分辨率策略与更深的MLP投影，以适应不同分辨率的视觉输入。
 
 语言模型作为MLLM的核心推理引擎，接收视觉特征与文本指令的拼接序列，以自回归方式生成文本输出。在闭源模型中，GPT-4o\inlinecite{openai2024gpt4o}率先实现了原生多模态统一架构，GPT-5\inlinecite{openai2025gpt5}进一步将多模态推理能力提升至新的水平；Google的Gemini系列从Gemini 1.0\inlinecite{team2023gemini}演进至Gemini 2.5\inlinecite{gemini2025gemini25}，后者结合可配置的思维链推理，在视觉理解与代码生成基准上均达到了前沿水平。在开源领域，LLaVA\inlinecite{liu2023llava}率先提出了视觉指令微调（Visual Instruction Tuning）范式，通过构造指令跟随格式的视觉问答数据对MLLM进行端到端微调，使轻量级开源模型在视觉理解任务上取得了接近闭源模型的性能。InternVL\inlinecite{chen2024internvl}通过扩大视觉编码器的规模并改进视觉-语言对齐策略，缩小了开源与闭源模型之间的差距；其最新版本InternVL3.5\inlinecite{wang2025internvl35}通过原生多模态预训练与混合偏好优化策略，在多模态推理基准上接近前沿闭源模型。Meta的LLaMA 4\inlinecite{meta2025llama4}则将多模态能力内建于模型架构中，是较早原生支持图像与文本联合理解的开源MoE模型之一。
 
@@ -115,7 +115,7 @@ SFT使模型掌握了基本的任务能力，但其训练目标仅为最大化�
 
 时序图的形式化处理有着较长的研究历史。Fisler\inlinecite{fisler1999timing}较早地对时序图进行了形式化定义，提出了基于时间区间的算法验证方法。Maler与Nickovic\inlinecite{maler2004monitoring}提出了针对连续信号时序属性的监控方法，Bartocci等人\inlinecite{bartocci2022survey}则对信号时序逻辑（Signal Temporal Logic, STL）规范的挖掘方法进行了全面综述。这些工作为时序行为的形式化描述与验证奠定了理论基础，但其输入通常为结构化的信号数据而非图像。
 
-在从时序图图像中自动提取信息方面，He等人\inlinecite{he2023tdmagic}提出的TD-Magic是较早的尝试，它通过OCR、边缘检测等计算机视觉技术从时序图图像中提取严格偏序（Strict Partial Order, SPO）关系作为形式化规范。但该方法基于规则的多模块设计限制了其处理复杂场景的能力，且仅适用于包含显式偏序关系的少数时序图。同一团队后续提出的TD-Interpreter\inlinecite{he2025tdinterpreter}采用了截然不同的技术路线，通过对开源MLLM LLaVA进行微调，构建了一个面向时序图的视觉问答系统。该工作开发了包含描述型与推理型两类合成数据的生成流程，使微调后的模型在时序图理解任务上大幅超越了未经微调的GPT-4o，证明了通过领域特定数据微调MLLM以理解时序图的可行性。
+在从时序图图像中自动提取信息方面，He等人\inlinecite{he2023tdmagic}提出的TD-Magic是较早的尝试，它通过光学字符识别（Optical Character Recognition, OCR）、边缘检测等计算机视觉技术从时序图图像中提取严格偏序（Strict Partial Order, SPO）关系作为形式化规范。但该方法基于规则的多模块设计限制了其处理复杂场景的能力，且仅适用于包含显式偏序关系的少数时序图。同一团队后续提出的TD-Interpreter\inlinecite{he2025tdinterpreter}采用了截然不同的技术路线，通过对开源MLLM LLaVA进行微调，构建了一个面向时序图的视觉问答系统。该工作开发了包含描述型与推理型两类合成数据的生成流程，使微调后的模型在时序图理解任务上大幅超越了未经微调的GPT-4o，证明了通过领域特定数据微调MLLM以理解时序图的可行性。
 
 本文的工作与上述方法存在本质区别。TD-Magic局限于提取偏序关系这一单一类型的形式化规范。TD-Interpreter虽然证明了领域微调的可行性，但存在以下五方面不足：一是任务定位局限于交互式问答，其输出为自然语言回答，不涉及结构化信息的完整提取或HDL代码的生成，无法直接服务于设计自动化流程；二是训练数据中描述型问答仅涉及信号数量、电平值等简单事实查询，而推理型问答依赖人工设计问题模板与标注答案，难以大规模扩展；三是其数据合成流程采用基于随机激励的测试平台生成方案，仿真产生的时序图往往缺乏有意义的功能行为模式，限制了训练数据的质量与多样性；四是评价体系沿用BLEU、ROUGE等通用文本相似度指标，这类指标对元素排列顺序敏感却对语义关键错误缺乏区分度，无法准确衡量时序图结构化表示的语义正确性；五是仅采用有监督微调进行训练，未探索利用可验证奖励信号进行强化学习优化，限制了模型输出的功能正确性。而本文将时序图解析建模为从图像到结构化表示、再到HDL代码的生成式流水线，训练数据可通过仿真工具链全自动生成，旨在实现对时序图完整信息的提取与硬件行为的逆向工程，在任务深度、数据可扩展性与实用价值上均超越了现有工作。
 
@@ -126,6 +126,6 @@ SFT使模型掌握了基本的任务能力，但其训练目标仅为最大化�
 
 \textbf{第一阶段：时序图图像到结构化表示。}给定一张时序图图像$I$，模型需要生成对应的WaveJSON结构化表示$J$。$J$包含一个信号数组，每个信号由名称（\texttt{name}）和波形字符串（\texttt{wave}）组成，多位数据信号还包含数值标签（\texttt{data}）。该阶段要求模型从像素级的视觉输入中准确识别所有信号的名称、电平序列与时钟关系，并将其编码为结构化的文本表示。
 
-\textbf{第二阶段：结构化表示到HDL代码。}给定第一阶段输出的WaveJSON表示$J$，模型需要生成能够产生相同时序行为的可综合Verilog模块$V$。该阶段要求模型从信号的时序变化中推理出底层的硬件逻辑——包括组合逻辑关系、有限状态机的状态转移、计数器与移位寄存器等时序电路结构——并将其转化为语法正确且功能等价的RTL代码。
+\textbf{第二阶段：结构化表示到HDL代码。}给定第一阶段输出的WaveJSON表示$J$，模型需要生成能够产生相同时序行为的可综合Verilog模块$V$。该阶段要求模型从信号的时序变化中推理出底层的硬件逻辑（包括组合逻辑关系、有限状态机的状态转移、计数器与移位寄存器等时序电路结构），并将其转化为语法正确且功能等价的RTL代码。
 
 上述定义中，第一阶段输出的结构化表示$J$除了作为第二阶段的输入外，其结构化特性使输出可被程序化地解析、比较与验证，为自动化评估与后续处理提供了客观基础。
